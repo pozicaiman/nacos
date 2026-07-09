@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
  *
  * @author shiyiyue
  */
-@SuppressWarnings("PMD.AbstractClassShouldStartWithAbstractNamingRule")
 public abstract class TpsBarrier {
     
     protected RuleBarrierCreator ruleBarrierCreator;
@@ -41,7 +40,8 @@ public abstract class TpsBarrier {
     public TpsBarrier(String pointName) {
         this.pointName = pointName;
         this.ruleBarrierCreator = new LocalSimpleCountBarrierCreator();
-        this.pointBarrier = ruleBarrierCreator.createRuleBarrier(pointName, pointName, TimeUnit.SECONDS);
+        this.pointBarrier =
+            ruleBarrierCreator.createRuleBarrier(pointName, pointName, TimeUnit.SECONDS);
     }
     
     /**

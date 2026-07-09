@@ -22,10 +22,10 @@ import com.alibaba.nacos.naming.consistency.ephemeral.distro.v2.DistroClientData
 import com.alibaba.nacos.naming.misc.GlobalExecutor;
 import com.alibaba.nacos.naming.misc.Loggers;
 import com.alibaba.nacos.naming.misc.NamingExecuteTaskDispatcher;
+import jakarta.annotation.PostConstruct;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -63,7 +63,8 @@ public class PerformanceLoggerThread {
      */
     @Scheduled(cron = "0/15 * * * * ?")
     public void collectMetrics() {
-        MetricsMonitor.getDomCountMonitor().set(com.alibaba.nacos.naming.core.v2.ServiceManager.getInstance().size());
+        MetricsMonitor.getDomCountMonitor()
+            .set(com.alibaba.nacos.naming.core.v2.ServiceManager.getInstance().size());
         MetricsMonitor.getAvgPushCostMonitor().set(getAvgPushCost());
     }
     
@@ -77,10 +78,13 @@ public class PerformanceLoggerThread {
                 logCount %= 10;
                 if (logCount == 0) {
                     Loggers.PERFORMANCE_LOG
-                            .info("PERFORMANCE:|serviceCount|ipCount|subscribeCount|maxPushCost|avgPushCost|totalPushCount|failPushCount");
-                    Loggers.PERFORMANCE_LOG.info("DISTRO:|V1SyncDone|V1SyncFail|V2SyncDone|V2SyncFail|V2VerifyFail|");
+                        .info(
+                            "PERFORMANCE:|serviceCount|ipCount|subscribeCount|maxPushCost|avgPushCost|totalPushCount|failPushCount");
+                    Loggers.PERFORMANCE_LOG
+                        .info("DISTRO:|V1SyncDone|V1SyncFail|V2SyncDone|V2SyncFail|V2VerifyFail|");
                 }
-                int serviceCount = com.alibaba.nacos.naming.core.v2.ServiceManager.getInstance().size();
+                int serviceCount =
+                    com.alibaba.nacos.naming.core.v2.ServiceManager.getInstance().size();
                 int ipCount = MetricsMonitor.getIpCountMonitor().get();
                 int subscribeCount = MetricsMonitor.getSubscriberCount().get();
                 long maxPushCost = MetricsMonitor.getMaxPushCostMonitor().get();
@@ -88,10 +92,12 @@ public class PerformanceLoggerThread {
                 long totalPushCount = MetricsMonitor.getTotalPushMonitor().longValue();
                 long failPushCount = MetricsMonitor.getFailedPushMonitor().longValue();
                 Loggers.PERFORMANCE_LOG
-                        .info("PERFORMANCE:|{}|{}|{}|{}|{}|{}|{}", serviceCount, ipCount, subscribeCount, maxPushCost,
-                                avgPushCost, totalPushCount, failPushCount);
+                    .info("PERFORMANCE:|{}|{}|{}|{}|{}|{}|{}", serviceCount, ipCount,
+                        subscribeCount, maxPushCost,
+                        avgPushCost, totalPushCount, failPushCount);
                 Loggers.PERFORMANCE_LOG
-                        .info("Task worker status: \n" + NamingExecuteTaskDispatcher.getInstance().workersStatus());
+                    .info("Task worker status: \n"
+                        + NamingExecuteTaskDispatcher.getInstance().workersStatus());
                 printDistroMonitor();
                 logCount++;
                 MetricsMonitor.getTotalPushCountForAvg().set(0);
@@ -105,7 +111,7 @@ public class PerformanceLoggerThread {
         
         private void printDistroMonitor() {
             Optional<DistroRecord> v2Record = DistroRecordsHolder.getInstance()
-                    .getRecordIfExist(DistroClientDataProcessor.TYPE);
+                .getRecordIfExist(DistroClientDataProcessor.TYPE);
             long v2SyncDone = 0;
             long v2SyncFail = 0;
             int v2VerifyFail = 0;

@@ -68,8 +68,8 @@ public class SwitchService {
         FATAL_LOG.warn("[switch-config] {}", config);
         
         Map<String, String> map = new HashMap<>(30);
-        try {
-            for (String line : IoUtils.readLines(new StringReader(config))) {
+        try (StringReader reader = new StringReader(config)) {
+            for (String line : IoUtils.readLines(reader)) {
                 if (!StringUtils.isBlank(line) && !line.startsWith("#")) {
                     String[] array = line.split("=");
                     
@@ -83,9 +83,9 @@ public class SwitchService {
                     
                     map.put(key, value);
                 }
-                switches = map;
-                FATAL_LOG.warn("[reload-switches] {}", getSwitches());
             }
+            switches = map;
+            FATAL_LOG.warn("[reload-switches] {}", getSwitches());
         } catch (IOException e) {
             LogUtil.FATAL_LOG.warn("[reload-switches] error! {}", config);
         }

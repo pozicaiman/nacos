@@ -16,6 +16,9 @@
 
 package com.alibaba.nacos.naming.web;
 
+import com.alibaba.nacos.core.code.ControllerMethodsCache;
+import com.alibaba.nacos.core.web.NacosWebBean;
+import jakarta.annotation.PostConstruct;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,12 +29,15 @@ import org.springframework.context.annotation.Configuration;
  * @author nkorange
  */
 @Configuration
+@NacosWebBean
 public class NamingConfig {
     
     private static final String URL_PATTERNS = "/v1/ns/*";
     
     private static final String URL_PATTERNS_V2 = "/v2/ns/*";
     
+    private static final String URL_PATTERNS_V3_CLIENT = "/v3/client/ns/*";
+    private static final String URL_PATTERNS_V3_ADMIN = "/v3/admin/ns/*";
     private static final String DISTRO_FILTER = "distroFilter";
     
     private static final String SERVICE_NAME_FILTER = "serviceNameFilter";
@@ -40,13 +46,22 @@ public class NamingConfig {
     
     private static final String CLIENT_ATTRIBUTES_FILTER = "clientAttributes_filter";
     
-    private static final String NAMING_PARAM_CHECK_FILTER = "namingparamCheckFilter";
+    private final ControllerMethodsCache methodsCache;
+    
+    public NamingConfig(ControllerMethodsCache methodsCache) {
+        this.methodsCache = methodsCache;
+    }
+    
+    @PostConstruct
+    public void init() {
+        methodsCache.initClassMethod("com.alibaba.nacos.naming.controllers");
+    }
     
     @Bean
     public FilterRegistrationBean<DistroFilter> distroFilterRegistration() {
         FilterRegistrationBean<DistroFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(distroFilter());
-        registration.addUrlPatterns(URL_PATTERNS);
+        registration.addUrlPatterns(URL_PATTERNS, URL_PATTERNS_V3_CLIENT, URL_PATTERNS_V3_ADMIN);
         registration.setName(DISTRO_FILTER);
         registration.setOrder(7);
         return registration;
@@ -74,7 +89,8 @@ public class NamingConfig {
     
     @Bean
     public FilterRegistrationBean<ClientAttributesFilter> clientAttributesFilterRegistration() {
-        FilterRegistrationBean<ClientAttributesFilter> registration = new FilterRegistrationBean<>();
+        FilterRegistrationBean<ClientAttributesFilter> registration =
+            new FilterRegistrationBean<>();
         registration.setFilter(clientAttributesFilter());
         registration.addUrlPatterns(URL_PATTERNS, URL_PATTERNS_V2);
         registration.setName(CLIENT_ATTRIBUTES_FILTER);

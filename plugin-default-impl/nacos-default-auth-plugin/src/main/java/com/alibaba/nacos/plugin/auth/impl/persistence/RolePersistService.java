@@ -16,7 +16,7 @@
 
 package com.alibaba.nacos.plugin.auth.impl.persistence;
 
-import com.alibaba.nacos.persistence.model.Page;
+import com.alibaba.nacos.api.model.Page;
 
 import java.util.List;
 
@@ -26,9 +26,8 @@ import java.util.List;
  * @author nkorange
  * @since 1.2.0
  */
-@SuppressWarnings("PMD.AbstractMethodOrInterfaceMethodMustUseJavadocRule")
 public interface RolePersistService {
-
+    
     /**
      * get roles by page.
      *
@@ -37,7 +36,7 @@ public interface RolePersistService {
      * @return roles page info
      */
     Page<RoleInfo> getRoles(int pageNo, int pageSize);
-
+    
     /**
      * query the user's roles by username.
      *
@@ -46,8 +45,9 @@ public interface RolePersistService {
      * @param pageSize pageSize
      * @return roles page info
      */
-    Page<RoleInfo> getRolesByUserNameAndRoleName(String username, String role, int pageNo, int pageSize);
-
+    Page<RoleInfo> getRolesByUserNameAndRoleName(String username, String role, int pageNo,
+        int pageSize);
+    
     /**
      * assign role to user.
      *
@@ -55,14 +55,14 @@ public interface RolePersistService {
      * @param userName username
      */
     void addRole(String role, String userName);
-
+    
     /**
      * delete role.
      *
      * @param role role
      */
     void deleteRole(String role);
-
+    
     /**
      * delete user's role.
      *
@@ -70,7 +70,7 @@ public interface RolePersistService {
      * @param username username
      */
     void deleteRole(String role, String username);
-
+    
     /**
      * fuzzy query roles by role name.
      *
@@ -78,7 +78,7 @@ public interface RolePersistService {
      * @return roles
      */
     List<String> findRolesLikeRoleName(String role);
-
+    
     /**
      * Generate fuzzy search Sql.
      *
@@ -86,7 +86,7 @@ public interface RolePersistService {
      * @return fuzzy search Sql
      */
     String generateLikeArgument(String s);
-
+    
     /**.
      * fuzzy query role information based on roleName and username
      *

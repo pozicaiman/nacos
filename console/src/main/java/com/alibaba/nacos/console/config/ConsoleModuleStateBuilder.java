@@ -16,27 +16,37 @@
 
 package com.alibaba.nacos.console.config;
 
+import com.alibaba.nacos.sys.env.EnvUtil;
+import com.alibaba.nacos.sys.module.AbstractConsoleModuleStateBuilder;
 import com.alibaba.nacos.sys.module.ModuleState;
-import com.alibaba.nacos.sys.module.ModuleStateBuilder;
-import com.alibaba.nacos.sys.utils.ApplicationUtils;
 
 /**
  * Console module state builder.
  *
  * @author xiweng.yy
  */
-public class ConsoleModuleStateBuilder implements ModuleStateBuilder {
+public class ConsoleModuleStateBuilder extends AbstractConsoleModuleStateBuilder {
     
     public static final String CONSOLE_MODULE = "console";
     
     private static final String CONSOLE_UI_ENABLED = "console_ui_enabled";
     
+    private static final String CONSOLE_UI_DEFAULT = "console_ui_default";
+    
+    private static final String AI_ENABLED = "ai_enabled";
+    
     @Override
     public ModuleState build() {
         ModuleState result = new ModuleState(CONSOLE_MODULE);
         try {
-            ConsoleConfig consoleConfig = ApplicationUtils.getBean(ConsoleConfig.class);
-            result.newState(CONSOLE_UI_ENABLED, consoleConfig.isConsoleUiEnabled());
+            boolean consoleUiEnabled =
+                EnvUtil.getProperty("nacos.console.ui.enabled", Boolean.class, true);
+            result.newState(CONSOLE_UI_ENABLED, consoleUiEnabled);
+            String defaultUi = EnvUtil.getProperty("nacos.console.ui.default", "next");
+            result.newState(CONSOLE_UI_DEFAULT, defaultUi);
+            boolean aiEnabled =
+                EnvUtil.getProperty("nacos.extension.ai.enabled", Boolean.class, true);
+            result.newState(AI_ENABLED, aiEnabled);
         } catch (Exception ignored) {
         }
         return result;

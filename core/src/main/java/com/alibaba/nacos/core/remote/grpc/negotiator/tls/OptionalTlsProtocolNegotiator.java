@@ -28,6 +28,10 @@ import io.grpc.netty.shaded.io.netty.handler.codec.ByteToMessageDecoder;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslContext;
 import io.grpc.netty.shaded.io.netty.handler.ssl.SslHandler;
 import io.grpc.netty.shaded.io.netty.util.AsciiString;
+import io.grpc.netty.shaded.io.netty.util.Attribute;
+import io.grpc.netty.shaded.io.netty.util.AttributeKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -39,15 +43,21 @@ import java.util.List;
  */
 public class OptionalTlsProtocolNegotiator implements NacosGrpcProtocolNegotiator {
     
+    private static final Logger LOGGER =
+        LoggerFactory.getLogger(OptionalTlsProtocolNegotiator.class);
+    
     private static final int MAGIC_VALUE = 5;
     
     private final boolean supportPlainText;
     
+    private final RpcServerTlsConfig config;
+    
     private SslContext sslContext;
     
-    public OptionalTlsProtocolNegotiator(SslContext sslContext, boolean supportPlainText) {
+    public OptionalTlsProtocolNegotiator(SslContext sslContext, RpcServerTlsConfig config) {
         this.sslContext = sslContext;
-        this.supportPlainText = supportPlainText;
+        this.config = config;
+        this.supportPlainText = config.getCompatibility();
     }
     
     void setSslContext(SslContext sslContext) {
@@ -61,40 +71,40 @@ public class OptionalTlsProtocolNegotiator implements NacosGrpcProtocolNegotiato
     
     @Override
     public ChannelHandler newHandler(GrpcHttp2ConnectionHandler grpcHttp2ConnectionHandler) {
-        ChannelHandler plaintext = InternalProtocolNegotiators.serverPlaintext().newHandler(grpcHttp2ConnectionHandler);
-        ChannelHandler ssl = InternalProtocolNegotiators.serverTls(sslContext).newHandler(grpcHttp2ConnectionHandler);
-        ChannelHandler decoder = new PortUnificationServerHandler(ssl, plaintext);
-        return decoder;
+        ChannelHandler plaintext =
+            InternalProtocolNegotiators.serverPlaintext().newHandler(grpcHttp2ConnectionHandler);
+        ChannelHandler ssl = InternalProtocolNegotiators.serverTls(sslContext)
+            .newHandler(grpcHttp2ConnectionHandler);
+        return new PortUnificationServerHandler(ssl, plaintext);
     }
     
     @Override
     public void close() {
-    
+        
     }
     
     @Override
     public void reloadNegotiator() {
-        RpcServerTlsConfig rpcServerTlsConfig = RpcServerTlsConfig.getInstance();
-        if (rpcServerTlsConfig.getEnableTls()) {
-            sslContext = DefaultTlsContextBuilder.getSslContext(rpcServerTlsConfig);
+        if (config.getEnableTls()) {
+            sslContext = DefaultTlsContextBuilder.getSslContext(config);
         }
     }
     
     private ProtocolNegotiationEvent getDefPne() {
-        ProtocolNegotiationEvent protocolNegotiationEvent = null;
         try {
             Field aDefault = ProtocolNegotiationEvent.class.getDeclaredField("DEFAULT");
             aDefault.setAccessible(true);
-            return (ProtocolNegotiationEvent) aDefault.get(protocolNegotiationEvent);
+            return (ProtocolNegotiationEvent) aDefault.get(null);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.warn("Failed to access ProtocolNegotiationEvent.DEFAULT via reflection; "
+                + "the negotiation event will be null, which may break gRPC TLS negotiation", e);
         }
-        return protocolNegotiationEvent;
+        return null;
     }
     
     public class PortUnificationServerHandler extends ByteToMessageDecoder {
         
-        private ProtocolNegotiationEvent pne;
+        private final ProtocolNegotiationEvent pne;
         
         private final ChannelHandler ssl;
         
@@ -111,19 +121,22 @@ public class OptionalTlsProtocolNegotiator implements NacosGrpcProtocolNegotiato
         }
         
         @Override
-        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out)
+            throws Exception {
             if (in.readableBytes() < MAGIC_VALUE) {
                 return;
             }
+            Attribute<Boolean> tlsProtected =
+                ctx.channel().attr(AttributeKey.valueOf("TLS_PROTECTED"));
             if (isSsl(in) || !supportPlainText) {
-                ctx.pipeline().addAfter(ctx.name(), (String) null, this.ssl);
-                ctx.fireUserEventTriggered(pne);
-                ctx.pipeline().remove(this);
+                tlsProtected.set(true);
+                ctx.pipeline().addAfter(ctx.name(), null, this.ssl);
             } else {
-                ctx.pipeline().addAfter(ctx.name(), (String) null, this.plaintext);
-                ctx.fireUserEventTriggered(pne);
-                ctx.pipeline().remove(this);
+                tlsProtected.set(false);
+                ctx.pipeline().addAfter(ctx.name(), null, this.plaintext);
             }
+            ctx.fireUserEventTriggered(pne);
+            ctx.pipeline().remove(this);
         }
     }
     

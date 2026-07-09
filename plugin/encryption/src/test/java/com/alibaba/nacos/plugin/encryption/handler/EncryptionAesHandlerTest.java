@@ -20,19 +20,20 @@ import com.alibaba.nacos.common.utils.Pair;
 import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.plugin.encryption.EncryptionPluginManager;
 import com.alibaba.nacos.plugin.encryption.spi.EncryptionPluginService;
+import org.apache.hc.client5.http.utils.Base64;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 
-import org.apache.commons.codec.binary.Base64;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * AES encryption algorithm testing dataId with prefix cipher.
@@ -41,12 +42,12 @@ import org.junit.Test;
  * @Date 2023/12/22 6:07 PM
  * @Version 1.0
  */
-public class EncryptionAesHandlerTest {
+class EncryptionAesHandlerTest {
     
     private EncryptionPluginService mockEncryptionPluginService;
     
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         mockEncryptionPluginService = new EncryptionPluginService() {
             
             private static final String ALGORITHM = "AES";
@@ -98,7 +99,8 @@ public class EncryptionAesHandlerTest {
             
             @Override
             public String encryptSecretKey(String secretKey) {
-                return Base64.encodeBase64String(aes(Cipher.ENCRYPT_MODE, generateSecretKey(), theKeyOfContentKey));
+                return Base64.encodeBase64String(
+                    aes(Cipher.ENCRYPT_MODE, generateSecretKey(), theKeyOfContentKey));
             }
             
             @Override
@@ -118,7 +120,8 @@ public class EncryptionAesHandlerTest {
             }
             
             private byte[] aesBytes(int mode, byte[] content, String key) {
-                SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), ALGORITHM);
+                SecretKeySpec keySpec =
+                    new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), ALGORITHM);
                 Cipher cipher = null;
                 try {
                     cipher = Cipher.getInstance(AES_PKCS5P);
@@ -138,33 +141,35 @@ public class EncryptionAesHandlerTest {
     }
     
     @Test
-    public void testEncrypt() {
+    void testEncrypt() {
         String content = "content";
         String contentKey = mockEncryptionPluginService.generateSecretKey();
         Pair<String, String> pair = EncryptionHandler.encryptHandler("cipher-aes-dataId", content);
-        Assert.assertEquals("should return the encryption secret key if algorithm defined.", mockEncryptionPluginService.encryptSecretKey(contentKey),
-                pair.getFirst());
-        Assert.assertEquals("should return the encryption content if algorithm defined.", mockEncryptionPluginService.encrypt(contentKey, content),
-                pair.getSecond());
+        assertEquals(mockEncryptionPluginService.encryptSecretKey(contentKey), pair.getFirst(),
+            "should return the encryption secret key if algorithm defined.");
+        assertEquals(mockEncryptionPluginService.encrypt(contentKey, content), pair.getSecond(),
+            "should return the encryption content if algorithm defined.");
     }
     
     @Test
-    public void testDecrypt() {
+    void testDecrypt() {
         String content = "content";
         String contentKey = mockEncryptionPluginService.generateSecretKey();
         String encryptionSecretKey = mockEncryptionPluginService.encryptSecretKey(contentKey);
         String encryptionContent = mockEncryptionPluginService.encrypt(contentKey, content);
         
-        Pair<String, String> pair = EncryptionHandler.decryptHandler("cipher-aes-dataId", encryptionSecretKey, encryptionContent);
+        Pair<String, String> pair = EncryptionHandler.decryptHandler("cipher-aes-dataId",
+            encryptionSecretKey, encryptionContent);
         
-        Assert.assertEquals("should return the original secret key if algorithm defined.", mockEncryptionPluginService.generateSecretKey(),
-                pair.getFirst());
-        Assert.assertEquals("should return the original content if algorithm defined.", content, pair.getSecond());
+        assertEquals(mockEncryptionPluginService.generateSecretKey(), pair.getFirst(),
+            "should return the original secret key if algorithm defined.");
+        assertEquals(content, pair.getSecond(),
+            "should return the original content if algorithm defined.");
         
     }
     
     @Test
-    public void testEncryptAndDecrypt() {
+    void testEncryptAndDecrypt() {
         String dataId = "cipher-aes-dataId";
         String content = "content";
         String contentKey = mockEncryptionPluginService.generateSecretKey();
@@ -172,64 +177,69 @@ public class EncryptionAesHandlerTest {
         Pair<String, String> encryptPair = EncryptionHandler.encryptHandler(dataId, content);
         String encryptionSecretKey = encryptPair.getFirst();
         String encryptionContent = encryptPair.getSecond();
-        Assert.assertNotNull(encryptPair);
-        Assert.assertEquals("should return the encryption secret key if algorithm defined.", mockEncryptionPluginService.encryptSecretKey(contentKey),
-                encryptionSecretKey);
-        Assert.assertEquals("should return the encryption content if algorithm defined.", mockEncryptionPluginService.encrypt(contentKey, content),
-                encryptionContent);
+        assertNotNull(encryptPair);
+        assertEquals(mockEncryptionPluginService.encryptSecretKey(contentKey), encryptionSecretKey,
+            "should return the encryption secret key if algorithm defined.");
+        assertEquals(mockEncryptionPluginService.encrypt(contentKey, content), encryptionContent,
+            "should return the encryption content if algorithm defined.");
         
-        Pair<String, String> decryptPair = EncryptionHandler.decryptHandler(dataId, encryptionSecretKey, encryptionContent);
-        Assert.assertNotNull(decryptPair);
-        Assert.assertEquals("should return the original secret key if algorithm defined.", mockEncryptionPluginService.generateSecretKey(),
-                decryptPair.getFirst());
-        Assert.assertEquals("should return the original content if algorithm defined.", content, decryptPair.getSecond());
+        Pair<String, String> decryptPair =
+            EncryptionHandler.decryptHandler(dataId, encryptionSecretKey, encryptionContent);
+        assertNotNull(decryptPair);
+        assertEquals(mockEncryptionPluginService.generateSecretKey(), decryptPair.getFirst(),
+            "should return the original secret key if algorithm defined.");
+        assertEquals(content, decryptPair.getSecond(),
+            "should return the original content if algorithm defined.");
     }
     
     @Test
-    public void testPrefixNotCipherEncrypt() {
+    void testPrefixNotCipherEncrypt() {
         String content = "content";
         Pair<String, String> pair = EncryptionHandler.encryptHandler("test-dataId", content);
-        Assert.assertNotNull(pair);
-        Assert.assertEquals(pair.getFirst(), "");
-        Assert.assertEquals(pair.getSecond(), content);
+        assertNotNull(pair);
+        assertEquals("", pair.getFirst());
+        assertEquals(pair.getSecond(), content);
     }
     
     @Test
-    public void testPrefixNotCipherDecrypt() {
+    void testPrefixNotCipherDecrypt() {
         String content = "content";
         Pair<String, String> pair = EncryptionHandler.decryptHandler("test-dataId", "", content);
-        Assert.assertNotNull(pair);
-        Assert.assertEquals(pair.getFirst(), "");
-        Assert.assertEquals(pair.getSecond(), content);
+        assertNotNull(pair);
+        assertEquals("", pair.getFirst());
+        assertEquals(pair.getSecond(), content);
     }
     
     @Test
-    public void testAlgorithmEmpty() {
+    void testAlgorithmEmpty() {
         String dataId = "cipher-";
         String content = "content";
         Pair<String, String> pair = EncryptionHandler.encryptHandler(dataId, content);
-        Assert.assertNotNull("should not throw exception when parsing enc algo for dataId '" + dataId + "'", pair);
-        Assert.assertEquals(pair.getFirst(), "");
-        Assert.assertEquals(pair.getSecond(), content);
+        assertNotNull(pair,
+            "should not throw exception when parsing enc algo for dataId '" + dataId + "'");
+        assertEquals("", pair.getFirst());
+        assertEquals(pair.getSecond(), content);
     }
     
     @Test
-    public void testUnknownAlgorithmNameEncrypt() {
+    void testUnknownAlgorithmNameEncrypt() {
         String dataId = "cipher-mySM4-application";
         String content = "content";
         Pair<String, String> pair = EncryptionHandler.encryptHandler(dataId, content);
-        Assert.assertNotNull(pair);
-        Assert.assertEquals(pair.getFirst(), "");
-        Assert.assertEquals("should return original content if algorithm is not defined.", content, pair.getSecond());
+        assertNotNull(pair);
+        assertEquals("", pair.getFirst());
+        assertEquals(content, pair.getSecond(),
+            "should return original content if algorithm is not defined.");
     }
     
     @Test
-    public void testUnknownAlgorithmNameDecrypt() {
+    void testUnknownAlgorithmNameDecrypt() {
         String dataId = "cipher-mySM4-application";
         String content = "content";
         Pair<String, String> pair = EncryptionHandler.decryptHandler(dataId, "", content);
-        Assert.assertNotNull(pair);
-        Assert.assertEquals(pair.getFirst(), "");
-        Assert.assertEquals("should return original content if algorithm is not defined.", content, pair.getSecond());
+        assertNotNull(pair);
+        assertEquals("", pair.getFirst());
+        assertEquals(content, pair.getSecond(),
+            "should return original content if algorithm is not defined.");
     }
 }

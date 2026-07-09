@@ -18,66 +18,71 @@ package com.alibaba.nacos.config.server.service;
 
 import com.alibaba.nacos.common.utils.MD5Utils;
 import com.alibaba.nacos.config.server.model.CacheItem;
-import com.alibaba.nacos.config.server.model.ConfigCache;
+import com.alibaba.nacos.config.server.model.ConfigCacheGray;
+import com.alibaba.nacos.config.server.model.gray.GrayRuleManager;
 import com.alibaba.nacos.config.server.service.dump.disk.ConfigDiskService;
 import com.alibaba.nacos.config.server.service.dump.disk.ConfigDiskServiceFactory;
 import com.alibaba.nacos.config.server.utils.GroupKey2;
 import com.alibaba.nacos.config.server.utils.PropertyUtil;
 import com.alibaba.nacos.config.server.utils.SimpleReadWriteLock;
 import com.alibaba.nacos.sys.env.EnvUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.stubbing.OngoingStubbing;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static com.alibaba.nacos.config.server.constant.Constants.NULL;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-public class ConfigCacheServiceTest {
+@ExtendWith(SpringExtension.class)
+class ConfigCacheServiceTest {
     
     MockedStatic<PropertyUtil> propertyUtilMockedStatic;
     
     MockedStatic<ConfigDiskServiceFactory> configDiskServiceFactoryMockedStatic;
     
-    @Mock
+    @MockitoBean
     ConfigDiskService configDiskService;
     
     MockedStatic<EnvUtil> envUtilMockedStatic;
     
-    @Before
-    public void before() {
+    @BeforeEach
+    void before() {
         envUtilMockedStatic = Mockito.mockStatic(EnvUtil.class);
         configDiskServiceFactoryMockedStatic = Mockito.mockStatic(ConfigDiskServiceFactory.class);
         configDiskServiceFactoryMockedStatic.when(() -> ConfigDiskServiceFactory.getInstance())
-                .thenReturn(configDiskService);
+            .thenReturn(configDiskService);
         propertyUtilMockedStatic = Mockito.mockStatic(PropertyUtil.class);
     }
     
-    @After
-    public void after() {
+    @AfterEach
+    void after() {
         envUtilMockedStatic.close();
         propertyUtilMockedStatic.close();
         configDiskServiceFactoryMockedStatic.close();
     }
     
     @Test
-    public void testDumpFormal() throws Exception {
+    void testDumpFormal() throws Exception {
         String dataId = "dataIdtestDumpMd5NewTsNewMd5123";
         String group = "group11";
         String tenant = "tenant112";
@@ -86,238 +91,578 @@ public class ConfigCacheServiceTest {
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
         //make sure not exist prev cache.
         CacheItem contentCache = ConfigCacheService.getContentCache(groupKey);
-        Assert.assertTrue(contentCache == null);
+        assertTrue(contentCache == null);
         long ts = System.currentTimeMillis();
         String type = "json";
         String encryptedDataKey = "key12345";
-        boolean result = ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5, ts, type,
+        boolean result =
+            ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5, ts, type,
                 encryptedDataKey);
-        Assert.assertTrue(result);
+        assertTrue(result);
         //verify cache.
         CacheItem contentCache1 = ConfigCacheService.getContentCache(groupKey);
-        Assert.assertEquals(ts, contentCache1.getConfigCache().getLastModifiedTs());
-        Assert.assertEquals(md5, contentCache1.getConfigCache().getMd5Utf8());
-        Assert.assertEquals(type, contentCache1.getType());
-        Assert.assertEquals(encryptedDataKey, contentCache1.getConfigCache().getEncryptedDataKey());
-        Mockito.verify(configDiskService, times(1)).saveToDisk(eq(dataId), eq(group), eq(tenant), eq(content));
+        assertEquals(ts, contentCache1.getConfigCache().getLastModifiedTs());
+        assertEquals(md5, contentCache1.getConfigCache().getMd5());
+        assertEquals(type, contentCache1.getType());
+        assertEquals(encryptedDataKey, contentCache1.getConfigCache().getEncryptedDataKey());
+        Mockito.verify(configDiskService, times(1)).saveToDisk(eq(dataId), eq(group), eq(tenant),
+            eq(content));
         
         //modified ts and content and md5
         String contentNew = content + "11";
         long newTs = System.currentTimeMillis() + 12L;
         ConfigCacheService.dump(dataId, group, tenant, contentNew, newTs, type, encryptedDataKey);
         //expect save to disk invoked.
-        Mockito.verify(configDiskService, times(1)).saveToDisk(eq(dataId), eq(group), eq(tenant), eq(contentNew));
-        Assert.assertEquals(newTs, contentCache1.getConfigCache().getLastModifiedTs());
+        Mockito.verify(configDiskService, times(1)).saveToDisk(eq(dataId), eq(group), eq(tenant),
+            eq(contentNew));
+        assertEquals(newTs, contentCache1.getConfigCache().getLastModifiedTs());
         String newMd5 = MD5Utils.md5Hex(contentNew, "UTF-8");
-        Assert.assertEquals(newMd5, contentCache1.getConfigCache().getMd5Utf8());
+        assertEquals(newMd5, contentCache1.getConfigCache().getMd5());
         
         //modified ts old
         long oldTs2 = newTs - 123L;
         String contentWithOldTs = contentNew + "123456";
-        ConfigCacheService.dump(dataId, group, tenant, contentWithOldTs, oldTs2, type, encryptedDataKey);
+        ConfigCacheService.dump(dataId, group, tenant, contentWithOldTs, oldTs2, type,
+            encryptedDataKey);
         //expect save to disk invoked.
-        Mockito.verify(configDiskService, times(0)).saveToDisk(eq(dataId), eq(group), eq(tenant), eq(contentWithOldTs));
+        Mockito.verify(configDiskService, times(0)).saveToDisk(eq(dataId), eq(group), eq(tenant),
+            eq(contentWithOldTs));
         //not change ts and md5
-        Assert.assertEquals(newTs, contentCache1.getConfigCache().getLastModifiedTs());
-        Assert.assertEquals(newMd5, contentCache1.getConfigCache().getMd5Utf8());
+        assertEquals(newTs, contentCache1.getConfigCache().getLastModifiedTs());
+        assertEquals(newMd5, contentCache1.getConfigCache().getMd5());
         
         //modified ts new only
         long newTs2 = newTs + 123L;
         ConfigCacheService.dump(dataId, group, tenant, contentNew, newTs2, type, encryptedDataKey);
-        Assert.assertEquals(newTs2, contentCache1.getConfigCache().getLastModifiedTs());
+        assertEquals(newTs2, contentCache1.getConfigCache().getLastModifiedTs());
         
         //save to disk error
         doThrow(new IOException("No space left on device")).when(configDiskService)
-                .saveToDisk(anyString(), anyString(), anyString(), anyString());
+            .saveToDisk(anyString(), anyString(), anyString(), anyString());
         try {
             long newTs3 = newTs2 + 123L;
-            boolean dumpErrorResult = ConfigCacheService.dump(dataId, group, tenant, contentNew + "234567", newTs3,
+            boolean dumpErrorResult =
+                ConfigCacheService.dump(dataId, group, tenant, contentNew + "234567", newTs3,
                     type, encryptedDataKey);
             envUtilMockedStatic.verify(() -> EnvUtil.systemExit(), times(1));
-            Assert.assertFalse(dumpErrorResult);
+            assertFalse(dumpErrorResult);
         } catch (Throwable throwable) {
-            Assert.assertFalse(true);
+            assertFalse(true);
         }
         
         //test remove
         boolean remove = ConfigCacheService.remove(dataId, group, tenant);
-        Assert.assertTrue(remove);
+        assertTrue(remove);
         Mockito.verify(configDiskService, times(1)).removeConfigInfo(dataId, group, tenant);
         CacheItem contentCacheAfterRemove = ConfigCacheService.getContentCache(groupKey);
-        Assert.assertNull(contentCacheAfterRemove);
+        assertNull(contentCacheAfterRemove);
         
     }
     
     @Test
-    public void testDumpBeta() throws Exception {
+    public void testDumpGray() throws Exception {
         String dataId = "dataIdtestDumpBetaNewCache123";
         String group = "group11";
         String tenant = "tenant112";
-        String content = "mockContnet11";
+        String grayName = "grayName";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"dgray123\",\"priority\":1}";
+        String content = "mockContent11";
+        
         String md5 = MD5Utils.md5Hex(content, "UTF-8");
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
         String encryptedDataKey = "key12345";
-        List<String> betaIps = Arrays.asList("127.0.0.1", "127.0.0.2");
         long ts = System.currentTimeMillis();
-        //init beta cache
-        boolean result = ConfigCacheService.dumpBeta(dataId, group, tenant, content, ts, String.join(",", betaIps),
+        //init gray cache
+        boolean result =
+            ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule, content, ts,
                 encryptedDataKey);
-        Assert.assertTrue(result);
+        assertTrue(result);
         CacheItem contentCache = ConfigCacheService.getContentCache(groupKey);
-        Assert.assertEquals(md5, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(ts, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(betaIps, contentCache.getIps4Beta());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Mockito.verify(configDiskService, times(1)).saveBetaToDisk(eq(dataId), eq(group), eq(tenant), eq(content));
+        assertEquals(md5, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(ts, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
+        Mockito.verify(configDiskService, times(1))
+            .saveGrayToDisk(eq(dataId), eq(group), eq(tenant), eq(grayName), eq(content));
         
         //ts newer ,md5 update
         long tsNew = System.currentTimeMillis();
         String contentNew = content + tsNew;
         String md5New = MD5Utils.md5Hex(contentNew, "UTF-8");
-        List<String> betaIpsNew = Arrays.asList("127.0.0.1", "127.0.0.2", "127.0.0.3");
-        boolean resultNew = ConfigCacheService.dumpBeta(dataId, group, tenant, contentNew, tsNew,
-                String.join(",", betaIpsNew), encryptedDataKey);
-        Assert.assertTrue(resultNew);
-        Assert.assertEquals(md5New, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(tsNew, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Assert.assertEquals(betaIpsNew, contentCache.getIps4Beta());
-        Mockito.verify(configDiskService, times(1)).saveBetaToDisk(eq(dataId), eq(group), eq(tenant), eq(contentNew));
+        boolean resultNew = ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            contentNew, tsNew,
+            encryptedDataKey);
+        assertTrue(resultNew);
+        assertEquals(md5New, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(tsNew, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
+        Mockito.verify(configDiskService, times(1))
+            .saveGrayToDisk(eq(dataId), eq(group), eq(tenant), eq(grayName), eq(contentNew));
         
         //ts old ,md5 update
         long tsOld = tsNew - 1;
         String contentWithOldTs = "contentWithOldTs" + tsOld;
-        List<String> betaIpsWithOldTs = Arrays.asList("127.0.0.1", "127.0.0.2", "127.0.0.4");
-        boolean resultOld = ConfigCacheService.dumpBeta(dataId, group, tenant, contentWithOldTs, tsOld,
-                String.join(",", betaIpsWithOldTs), encryptedDataKey);
-        Assert.assertTrue(resultOld);
-        Assert.assertEquals(md5New, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(tsNew, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Assert.assertEquals(betaIpsNew, contentCache.getIps4Beta());
+        boolean resultOld =
+            ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule, contentWithOldTs,
+                tsOld, encryptedDataKey);
+        assertTrue(resultOld);
+        assertEquals(md5New, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(tsNew, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
         Mockito.verify(configDiskService, times(0))
-                .saveBetaToDisk(eq(dataId), eq(group), eq(tenant), eq(contentWithOldTs));
+            .saveGrayToDisk(eq(dataId), eq(group), eq(tenant), eq(grayName), eq(contentWithOldTs));
         
-        //ts new ,md5 not update,beta ips list changes
+        //ts new ,md5 not update,grayRule changes
         long tsNew2 = tsNew + 1;
+        String grayRuleNew =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"gray1234\",\"priority\":1}";
+        
         String contentWithPrev = contentNew;
-        List<String> betaIpsNew2 = Arrays.asList("127.0.0.1", "127.0.0.2", "127.0.0.4", "127.0.0.5");
-        boolean resultNew2 = ConfigCacheService.dumpBeta(dataId, group, tenant, contentWithPrev, tsNew2,
-                String.join(",", betaIpsNew2), encryptedDataKey);
-        Assert.assertTrue(resultNew2);
-        Assert.assertEquals(md5New, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(tsNew2, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Assert.assertEquals(betaIpsNew2, contentCache.getIps4Beta());
+        boolean resultNew2 = ConfigCacheService.dumpGray(dataId, group, tenant, grayName,
+            grayRuleNew, contentWithPrev,
+            tsNew2, encryptedDataKey);
+        assertTrue(resultNew2);
+        assertEquals(md5New, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(tsNew2, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
+        assertEquals(
+            GrayRuleManager
+                .constructGrayRule(GrayRuleManager.deserializeConfigGrayPersistInfo(grayRuleNew)),
+            contentCache.getConfigCacheGray().get(grayName).getGrayRule());
         
         //ts new only,md5 not update,beta ips not change
         long tsNew3 = tsNew2 + 1;
         String contentWithPrev2 = contentNew;
-        List<String> betaIpsNew3 = betaIpsNew2;
-        boolean resultNew3 = ConfigCacheService.dumpBeta(dataId, group, tenant, contentWithPrev2, tsNew3,
-                String.join(",", betaIpsNew3), encryptedDataKey);
-        Assert.assertTrue(resultNew3);
-        Assert.assertEquals(md5New, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(tsNew3, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Assert.assertEquals(betaIpsNew2, contentCache.getIps4Beta());
+        String grayRulePrev = grayRuleNew;
+        boolean resultNew3 =
+            ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRulePrev,
+                contentWithPrev2, tsNew3, encryptedDataKey);
+        assertTrue(resultNew3);
+        assertEquals(md5New, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(tsNew3, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
+        assertEquals(
+            GrayRuleManager
+                .constructGrayRule(GrayRuleManager.deserializeConfigGrayPersistInfo(grayRuleNew)),
+            contentCache.getConfigCacheGray().get(grayName).getGrayRule());
         
         //ts not update,md5 not update,beta ips not change
         long tsNew4 = tsNew3;
         String contentWithPrev4 = contentNew;
-        List<String> betaIpsNew4 = betaIpsNew2;
-        boolean resultNew4 = ConfigCacheService.dumpBeta(dataId, group, tenant, contentWithPrev4, tsNew4,
-                String.join(",", betaIpsNew4), encryptedDataKey);
-        Assert.assertTrue(resultNew4);
-        Assert.assertEquals(md5New, contentCache.getConfigCacheBeta().getMd5Utf8());
-        Assert.assertEquals(tsNew3, contentCache.getConfigCacheBeta().getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, contentCache.getConfigCacheBeta().getEncryptedDataKey());
-        Assert.assertEquals(betaIpsNew4, contentCache.getIps4Beta());
+        boolean resultNew4 =
+            ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRulePrev,
+                contentWithPrev4, tsNew4, encryptedDataKey);
+        assertTrue(resultNew4);
+        assertEquals(md5New, contentCache.getConfigCacheGray().get(grayName).getMd5());
+        assertEquals(tsNew3, contentCache.getConfigCacheGray().get(grayName).getLastModifiedTs());
+        assertEquals(encryptedDataKey,
+            contentCache.getConfigCacheGray().get(grayName).getEncryptedDataKey());
+        assertEquals(
+            GrayRuleManager
+                .constructGrayRule(GrayRuleManager.deserializeConfigGrayPersistInfo(grayRuleNew)),
+            contentCache.getConfigCacheGray().get(grayName).getGrayRule());
         
         //test remove
-        boolean removeBeta = ConfigCacheService.removeBeta(dataId, group, tenant);
-        Assert.assertTrue(removeBeta);
-        Mockito.verify(configDiskService, times(1)).removeConfigInfo4Beta(dataId, group, tenant);
-        ConfigCache betaCacheAfterRemove = ConfigCacheService.getContentCache(groupKey).getConfigCacheBeta();
-        Assert.assertNull(betaCacheAfterRemove);
+        boolean removeBeta = ConfigCacheService.removeGray(dataId, group, tenant, grayName);
+        assertTrue(removeBeta);
+        Mockito.verify(configDiskService, times(1)).removeConfigInfo4Gray(dataId, group, tenant,
+            grayName);
+        Map<String, ConfigCacheGray> grayCacheAfterRemove =
+            ConfigCacheService.getContentCache(groupKey)
+                .getConfigCacheGray();
+        assertNull(grayCacheAfterRemove);
     }
     
     @Test
-    public void testDumpTag() throws Exception {
-        String dataId = "dataIdtestDumpTag133323";
-        String group = "group11";
-        String tenant = "tenant112";
-        String content = "mockContnet11";
-        String tag = "tag12345";
+    void testGetContentMd5WithIpAndTag() {
+        String dataId = "testMd5IpTag";
+        String group = "g1";
+        String tenant = "t1";
+        String content = "content";
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
-        String encryptedDataKey = "key12345";
+        long ts = System.currentTimeMillis();
+        String md5 = "formalMd5";
+        
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5, ts,
+            "text", "");
+        
+        assertEquals(md5,
+            ConfigCacheService.getContentMd5(groupKey, "", "", null));
+        assertEquals(md5,
+            ConfigCacheService.getContentMd5(groupKey, "1.1.1.1", null, null));
+        assertEquals(md5,
+            ConfigCacheService.getContentMd5(groupKey, null, "tagVal", null));
+        assertEquals(md5,
+            ConfigCacheService.getContentMd5(groupKey, "1.1.1.1", "tagVal",
+                null));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetContentMd5NonExistentKey() {
+        assertEquals(NULL, ConfigCacheService.getContentMd5("nonExistent"));
+    }
+    
+    @Test
+    void testDumpGrayWithUnknownGrayRule() {
+        String grayRule =
+            "{\"type\":\"unknown\",\"version\":\"9.9.9\","
+                + "\"expr\":\"test\",\"priority\":1}";
+        boolean result = ConfigCacheService.dumpGray("d", "g", "t",
+            "grayName", grayRule, "content", System.currentTimeMillis(), "");
+        assertFalse(result);
+    }
+    
+    @Test
+    void testDumpGrayIoException() throws IOException {
+        String dataId = "testDumpGrayIO";
+        String group = "g1";
+        String tenant = "t1";
+        String grayName = "grayIO";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\","
+                + "\"expr\":\"test\",\"priority\":1}";
         long ts = System.currentTimeMillis();
         
-        //init dump tag
-        boolean dumpTagResult = ConfigCacheService.dumpTag(dataId, group, tenant, tag, content, ts, encryptedDataKey);
-        Assert.assertTrue(dumpTagResult);
-        Mockito.verify(configDiskService, times(1))
-                .saveTagToDisk(eq(dataId), eq(group), eq(tenant), eq(tag), eq(content));
-        CacheItem contentCache = ConfigCacheService.getContentCache(groupKey);
-        ConfigCache configCacheTag = contentCache.getConfigCacheTags().get(tag);
-        Assert.assertEquals(ts, configCacheTag.getLastModifiedTs());
-        String md5 = MD5Utils.md5Hex(content, "UTF-8");
-        Assert.assertEquals(md5, configCacheTag.getMd5Utf8());
+        ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            "content1", ts, "");
         
-        //ts newer ,md5 update
-        long tsNew = System.currentTimeMillis();
-        String contentNew = content + tsNew;
-        String md5New = MD5Utils.md5Hex(contentNew, "UTF-8");
-        boolean resultNew = ConfigCacheService.dumpTag(dataId, group, tenant, tag, contentNew, tsNew, encryptedDataKey);
-        Assert.assertTrue(resultNew);
-        Assert.assertEquals(md5New, configCacheTag.getMd5Utf8());
-        Assert.assertEquals(tsNew, configCacheTag.getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, configCacheTag.getEncryptedDataKey());
-        Mockito.verify(configDiskService, times(1))
-                .saveTagToDisk(eq(dataId), eq(group), eq(tenant), eq(tag), eq(contentNew));
+        doThrow(new IOException("disk error")).when(configDiskService)
+            .saveGrayToDisk(anyString(), anyString(), anyString(), anyString(),
+                anyString());
         
-        //ts old ,md5 update
-        long tsOld = tsNew - 1;
-        String contentWithOldTs = "contentWithOldTs" + tsOld;
-        boolean resultOld = ConfigCacheService.dumpTag(dataId, group, tenant, tag, contentWithOldTs, tsOld,
-                encryptedDataKey);
-        Assert.assertTrue(resultOld);
-        Assert.assertEquals(md5New, configCacheTag.getMd5Utf8());
-        Assert.assertEquals(tsNew, configCacheTag.getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, configCacheTag.getEncryptedDataKey());
-        Mockito.verify(configDiskService, times(0))
-                .saveTagToDisk(eq(dataId), eq(group), eq(tenant), eq(tag), eq(contentWithOldTs));
+        long ts2 = ts + 1000;
+        boolean result = ConfigCacheService.dumpGray(dataId, group, tenant,
+            grayName, grayRule, "different-content", ts2, "");
+        assertFalse(result);
         
-        //ts new only,md5 not update
-        long tsNew2 = tsNew + 1;
-        String contentWithPrev2 = contentNew;
-        boolean resultNew2 = ConfigCacheService.dumpTag(dataId, group, tenant, tag, contentWithPrev2, tsNew2,
-                encryptedDataKey);
-        Assert.assertTrue(resultNew2);
-        Assert.assertEquals(md5New, configCacheTag.getMd5Utf8());
-        Assert.assertEquals(tsNew2, configCacheTag.getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, configCacheTag.getEncryptedDataKey());
-        
-        //ts not update,md5 not update
-        long tsNew3 = tsNew2;
-        String contentWithPrev3 = contentNew;
-        boolean resultNew3 = ConfigCacheService.dumpTag(dataId, group, tenant, tag, contentWithPrev3, tsNew3,
-                encryptedDataKey);
-        Assert.assertTrue(resultNew3);
-        Assert.assertEquals(md5New, configCacheTag.getMd5Utf8());
-        Assert.assertEquals(tsNew3, configCacheTag.getLastModifiedTs());
-        Assert.assertEquals(encryptedDataKey, configCacheTag.getEncryptedDataKey());
-        
-        //test remove
-        boolean removeTag = ConfigCacheService.removeTag(dataId, group, tenant, tag);
-        Assert.assertTrue(removeTag);
-        Mockito.verify(configDiskService, times(1)).removeConfigInfo4Tag(dataId, group, tenant, tag);
-        Map<String, ConfigCache> configCacheTags = ConfigCacheService.getContentCache(groupKey).getConfigCacheTags();
-        Assert.assertNull(configCacheTags);
+        ConfigCacheService.remove(dataId, group, tenant);
     }
     
     @Test
-    public void testTryConfigReadLock() throws Exception {
+    void testRemoveGrayNonExistent() {
+        boolean result =
+            ConfigCacheService.removeGray("noKey", "g", "t", "gray");
+        assertTrue(result);
+    }
+    
+    @Test
+    void testRemoveNonExistent() {
+        boolean result = ConfigCacheService.remove("noKey", "g", "t");
+        assertTrue(result);
+    }
+    
+    @Test
+    void testIsUptodate() {
+        String dataId = "testUptodate";
+        String group = "g1";
+        String tenant = "t1";
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        String content = "uptodateContent";
+        String md5 = MD5Utils.md5Hex(content, "UTF-8");
+        
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5,
+            System.currentTimeMillis(), "text", "");
+        
+        assertTrue(ConfigCacheService.isUptodate(groupKey, md5));
+        assertFalse(ConfigCacheService.isUptodate(groupKey, "wrong"));
+        assertTrue(
+            ConfigCacheService.isUptodate(groupKey, md5, null, null));
+        assertTrue(
+            ConfigCacheService.isUptodate(groupKey, md5, "1.1.1.1", "tag"));
+        assertTrue(ConfigCacheService.isUptodate(groupKey, md5, "1.1.1.1",
+            "tag", null));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetGrayLastModifiedTs() {
+        String dataId = "testGrayTs";
+        String group = "g1";
+        String tenant = "t1";
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        String grayName = "gray1";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\","
+                + "\"expr\":\"test\",\"priority\":1}";
+        long ts = System.currentTimeMillis();
+        
+        ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            "content", ts, "");
+        
+        assertEquals(ts,
+            ConfigCacheService.getGrayLastModifiedTs(groupKey, grayName));
+        assertEquals(0,
+            ConfigCacheService.getGrayLastModifiedTs(groupKey, "noGray"));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetContentGrayMd5() {
+        String dataId = "testGrayMd5Get";
+        String group = "g1";
+        String tenant = "t1";
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        String grayName = "gray1";
+        String content = "grayContent";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\","
+                + "\"expr\":\"test\",\"priority\":1}";
+        long ts = System.currentTimeMillis();
+        
+        ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            content, ts, "");
+        
+        String expectedMd5 = MD5Utils.md5Hex(content, "UTF-8");
+        assertEquals(expectedMd5,
+            ConfigCacheService.getContentGrayMd5(groupKey, grayName));
+        assertEquals(NULL,
+            ConfigCacheService.getContentGrayMd5(groupKey, "noGray"));
+        assertEquals(NULL,
+            ConfigCacheService.getContentGrayMd5("noKey", grayName));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetGrayRule() {
+        String dataId = "testGrayRuleGet";
+        String group = "g1";
+        String tenant = "t1";
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        String grayName = "gray1";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\","
+                + "\"expr\":\"test\",\"priority\":1}";
+        long ts = System.currentTimeMillis();
+        
+        ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            "content", ts, "");
+        
+        assertNotNull(ConfigCacheService.getGrayRule(groupKey, grayName));
+        assertNull(ConfigCacheService.getGrayRule(groupKey, "noGray"));
+        assertNull(ConfigCacheService.getGrayRule("noKey", grayName));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetLastModifiedTs() {
+        String dataId = "testLastModTs";
+        String group = "g1";
+        String tenant = "t1";
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        long ts = System.currentTimeMillis();
+        
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, "c", "md5",
+            ts, "text", "");
+        
+        assertEquals(ts, ConfigCacheService.getLastModifiedTs(groupKey));
+        assertEquals(0L, ConfigCacheService.getLastModifiedTs("noKey"));
+        
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGroupCount() {
+        int before = ConfigCacheService.groupCount();
+        ConfigCacheService.dumpWithMd5("gcD", "gcG", "gcT", "c", "md5",
+            System.currentTimeMillis(), "text", "");
+        assertEquals(before + 1, ConfigCacheService.groupCount());
+        ConfigCacheService.remove("gcD", "gcG", "gcT");
+    }
+    
+    @Test
+    void testConstructor() {
+        assertNotNull(new ConfigCacheService());
+    }
+    
+    @Test
+    void testDumpWithSameMd5AndTimestampKeepsCache() throws Exception {
+        String dataId = "sameMd5D";
+        String group = "sameMd5G";
+        String tenant = "sameMd5T";
+        String content = "same-content";
+        String md5 = MD5Utils.md5Hex(content, "UTF-8");
+        long timestamp = System.currentTimeMillis();
+        
+        assertTrue(ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5,
+            timestamp, "text", ""));
+        assertTrue(ConfigCacheService.dumpWithMd5(dataId, group, tenant, content, md5,
+            timestamp, "text", ""));
+        
+        Mockito.verify(configDiskService, times(1)).saveToDisk(dataId, group, tenant, content);
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testTryReadLock() {
+        assertEquals(0, ConfigCacheService.tryReadLock("noExistKey"));
+    }
+    
+    @Test
+    void testReleaseReadLockNoItem() {
+        ConfigCacheService.releaseReadLock("noExistKey");
+    }
+    
+    @Test
+    void testReleaseReadLockExistingItem() {
+        ConfigCacheService.dumpWithMd5("rlD", "rlG", "rlT", "c", "md5",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey("rlD", "rlG", "rlT");
+        assertEquals(1, ConfigCacheService.tryReadLock(gk));
+        ConfigCacheService.releaseReadLock(gk);
+        ConfigCacheService.remove("rlD", "rlG", "rlT");
+    }
+    
+    @Test
+    void testTryWriteLock() {
+        assertEquals(0, ConfigCacheService.tryWriteLock("noExistKeyWrite"));
+    }
+    
+    @Test
+    void testTryWriteLockExistingItem() {
+        ConfigCacheService.dumpWithMd5("wlD", "wlG", "wlT", "c", "md5",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey("wlD", "wlG", "wlT");
+        int result = ConfigCacheService.tryWriteLock(gk);
+        assertEquals(1, result);
+        ConfigCacheService.releaseWriteLock(gk);
+        ConfigCacheService.remove("wlD", "wlG", "wlT");
+    }
+    
+    @Test
+    void testReleaseWriteLockNoItem() {
+        ConfigCacheService.releaseWriteLock("noExistKeyReleaseWrite");
+    }
+    
+    @Test
+    void testGetContentMd5WithConnLabels() {
+        ConfigCacheService.dumpWithMd5("clD", "clG", "clT", "content", "md5val",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey("clD", "clG", "clT");
+        Map<String, String> labels = new HashMap<>();
+        labels.put("clientIp", "1.1.1.1");
+        String md5 = ConfigCacheService.getContentMd5(gk, null, null, labels);
+        assertEquals("md5val", md5);
+        ConfigCacheService.remove("clD", "clG", "clT");
+    }
+    
+    @Test
+    void testGetContentMd5FallsBackWhenGrayRuleDoesNotMatch() {
+        String dataId = "grayMissD";
+        String group = "grayMissG";
+        String tenant = "grayMissT";
+        String grayRule = "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"blue\","
+            + "\"priority\":1}";
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, "formal", "formalMd5",
+            System.currentTimeMillis(), "text", "");
+        ConfigCacheService.dumpGray(dataId, group, tenant, "tag_blue", grayRule,
+            "grayContent", System.currentTimeMillis(), "");
+        
+        String gk = GroupKey2.getKey(dataId, group, tenant);
+        assertEquals("formalMd5", ConfigCacheService.getContentMd5(gk, null, "red", null));
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetContentMd5ReturnsNullConstantWhenMd5IsNull() {
+        String dataId = "nullMd5D";
+        String group = "nullMd5G";
+        String tenant = "nullMd5T";
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, "content", "md5",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey(dataId, group, tenant);
+        ConfigCacheService.getContentCache(gk).getConfigCache().setMd5(null);
+        
+        assertEquals(NULL, ConfigCacheService.getContentMd5(gk));
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testGetContentMd5WithIpCreatesLabels() {
+        ConfigCacheService.dumpWithMd5("ipD", "ipG", "ipT", "content", "md5ip",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey("ipD", "ipG", "ipT");
+        String md5 = ConfigCacheService.getContentMd5(gk, "10.0.0.1", null, null);
+        assertEquals("md5ip", md5);
+        ConfigCacheService.remove("ipD", "ipG", "ipT");
+    }
+    
+    @Test
+    void testIsUptodateWithIpAndTag() {
+        ConfigCacheService.dumpWithMd5("upD", "upG", "upT", "c", "upMd5",
+            System.currentTimeMillis(), "text", "");
+        String gk = GroupKey2.getKey("upD", "upG", "upT");
+        assertTrue(ConfigCacheService.isUptodate(gk, "upMd5", "1.1.1.1", "tag1"));
+        assertFalse(ConfigCacheService.isUptodate(gk, "wrongMd5", "1.1.1.1", "tag1"));
+        ConfigCacheService.remove("upD", "upG", "upT");
+    }
+    
+    @Test
+    void testDumpWriteLockFailed() throws Exception {
+        String dataId = "lockFailD";
+        String group = "lockFailG";
+        String tenant = "lockFailT";
+        SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
+        Mockito.when(lock.tryWriteLock()).thenReturn(false);
+        String groupKey = putMockCacheItem(dataId, group, tenant, lock);
+        boolean result = ConfigCacheService.dump(dataId, group, tenant,
+            "content", System.currentTimeMillis(), "text", "key");
+        assertFalse(result);
+        cache().remove(groupKey);
+    }
+    
+    @Test
+    void testDumpGrayWriteLockFailed() throws Exception {
+        String dataId = "grayLockD";
+        String group = "grayLockG";
+        String tenant = "grayLockT";
+        SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
+        Mockito.when(lock.tryWriteLock()).thenReturn(false);
+        String groupKey = putMockCacheItem(dataId, group, tenant, lock);
+        boolean result = ConfigCacheService.dumpGray(dataId, group, tenant,
+            "gray1", "{}", "content", System.currentTimeMillis(), "key");
+        assertFalse(result);
+        cache().remove(groupKey);
+    }
+    
+    @Test
+    void testRemoveWriteLockFailed() throws Exception {
+        String dataId = "rmLockD";
+        String group = "rmLockG";
+        String tenant = "rmLockT";
+        SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
+        Mockito.when(lock.tryWriteLock()).thenReturn(false);
+        String groupKey = putMockCacheItem(dataId, group, tenant, lock);
+        boolean result = ConfigCacheService.remove(dataId, group, tenant);
+        assertFalse(result);
+        cache().remove(groupKey);
+    }
+    
+    @Test
+    void testRemoveGrayWriteLockFailed() throws Exception {
+        String dataId = "rmGrayLockD";
+        String group = "rmGrayLockG";
+        String tenant = "rmGrayLockT";
+        SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
+        Mockito.when(lock.tryWriteLock()).thenReturn(false);
+        String groupKey = putMockCacheItem(dataId, group, tenant, lock);
+        boolean result = ConfigCacheService.removeGray(dataId, group, tenant, "gray1");
+        assertFalse(result);
+        cache().remove(groupKey);
+    }
+    
+    @Test
+    void testTryConfigReadLock() throws Exception {
         String dataId = "123testTryConfigReadLock";
         String group = "1234";
         String tenant = "1234";
@@ -325,19 +670,17 @@ public class ConfigCacheServiceTest {
         SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
         Mockito.when(cacheItem.getRwLock()).thenReturn(lock);
         String groupKey = GroupKey2.getKey(dataId, group, tenant);
-        Field cache1 = ConfigCacheService.class.getDeclaredField("CACHE");
-        cache1.setAccessible(true);
-        ConcurrentHashMap<String, CacheItem> cache = (ConcurrentHashMap<String, CacheItem>) cache1.get(null);
+        ConcurrentHashMap<String, CacheItem> cache = cache();
         cache.put(groupKey, cacheItem);
         
         // lock ==0,not exist
         int readLock = ConfigCacheService.tryConfigReadLock(groupKey + "3245");
-        Assert.assertEquals(0, readLock);
+        assertEquals(0, readLock);
         
         //lock == 1 , success get lock
         Mockito.when(lock.tryReadLock()).thenReturn(true);
         int readLockSuccess = ConfigCacheService.tryConfigReadLock(groupKey);
-        Assert.assertEquals(1, readLockSuccess);
+        assertEquals(1, readLockSuccess);
         
         //lock ==-1 fail after spin all times;
         OngoingStubbing<Boolean> when = Mockito.when(lock.tryReadLock());
@@ -345,7 +688,7 @@ public class ConfigCacheServiceTest {
             when = when.thenReturn(false);
         }
         int readLockFail = ConfigCacheService.tryConfigReadLock(groupKey);
-        Assert.assertEquals(-1, readLockFail);
+        assertEquals(-1, readLockFail);
         
         //lock ==1 success after serval spin  times;
         OngoingStubbing<Boolean> when2 = Mockito.when(lock.tryReadLock());
@@ -354,6 +697,80 @@ public class ConfigCacheServiceTest {
         }
         when2.thenReturn(true);
         int readLockSuccessAfterRetry = ConfigCacheService.tryConfigReadLock(groupKey);
-        Assert.assertEquals(1, readLockSuccessAfterRetry);
+        assertEquals(1, readLockSuccessAfterRetry);
+    }
+    
+    @Test
+    void testTryConfigReadLockWhenSleepInterrupted() throws Exception {
+        String dataId = "interruptReadLockD";
+        String group = "interruptReadLockG";
+        String tenant = "interruptReadLockT";
+        SimpleReadWriteLock lock = Mockito.mock(SimpleReadWriteLock.class);
+        Mockito.when(lock.tryReadLock()).thenReturn(false);
+        String groupKey = putMockCacheItem(dataId, group, tenant, lock);
+        
+        Thread.currentThread().interrupt();
+        assertEquals(-1, ConfigCacheService.tryConfigReadLock(groupKey));
+        assertFalse(Thread.currentThread().isInterrupted());
+        cache().remove(groupKey);
+    }
+    
+    @Test
+    void testGetContentMd5MatchesGrayRule() {
+        String dataId = "grayMatchD";
+        String group = "grayMatchG";
+        String tenant = "grayMatchT";
+        String grayName = "tag_myTag";
+        String grayRule =
+            "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"myTag\","
+                + "\"priority\":-999}";
+        String content = "grayContent";
+        String grayMd5 = MD5Utils.md5Hex(content, "UTF-8");
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, "formal", "formalMd5",
+            System.currentTimeMillis(), "text", "");
+        ConfigCacheService.dumpGray(dataId, group, tenant, grayName, grayRule,
+            content, System.currentTimeMillis(), "");
+        String gk = GroupKey2.getKey(dataId, group, tenant);
+        String md5 = ConfigCacheService.getContentMd5(gk, null, "myTag", null);
+        assertEquals(grayMd5, md5);
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    @Test
+    void testRemoveGraySortsRemainingGrayRules() {
+        String dataId = "graySortD";
+        String group = "graySortG";
+        String tenant = "graySortT";
+        String highPriorityRule = "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"high\","
+            + "\"priority\":2}";
+        String lowPriorityRule = "{\"type\":\"tag\",\"version\":\"1.0.0\",\"expr\":\"low\","
+            + "\"priority\":1}";
+        ConfigCacheService.dumpWithMd5(dataId, group, tenant, "formal", "formalMd5",
+            System.currentTimeMillis(), "text", "");
+        ConfigCacheService.dumpGray(dataId, group, tenant, "tag_high", highPriorityRule,
+            "highContent", System.currentTimeMillis(), "");
+        ConfigCacheService.dumpGray(dataId, group, tenant, "tag_low", lowPriorityRule,
+            "lowContent", System.currentTimeMillis(), "");
+        
+        assertTrue(ConfigCacheService.removeGray(dataId, group, tenant, "tag_high"));
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        assertEquals("tag_low",
+            ConfigCacheService.getContentCache(groupKey).getSortConfigGrays().get(0).getGrayName());
+        ConfigCacheService.remove(dataId, group, tenant);
+    }
+    
+    private String putMockCacheItem(String dataId, String group, String tenant,
+        SimpleReadWriteLock lock) throws Exception {
+        String groupKey = GroupKey2.getKey(dataId, group, tenant);
+        CacheItem cacheItem = Mockito.mock(CacheItem.class);
+        Mockito.when(cacheItem.getRwLock()).thenReturn(lock);
+        cache().put(groupKey, cacheItem);
+        return groupKey;
+    }
+    
+    private ConcurrentHashMap<String, CacheItem> cache() throws Exception {
+        Field cacheField = ConfigCacheService.class.getDeclaredField("CACHE");
+        cacheField.setAccessible(true);
+        return (ConcurrentHashMap<String, CacheItem>) cacheField.get(null);
     }
 }

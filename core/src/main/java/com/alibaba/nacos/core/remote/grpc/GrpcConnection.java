@@ -54,7 +54,7 @@ public class GrpcConnection extends Connection {
     
     private Channel channel;
     
-    private static TpsControlManager tpsControlManager;
+    private static volatile TpsControlManager tpsControlManager;
     
     public GrpcConnection(ConnectionMeta metaInfo, StreamObserver streamObserver, Channel channel) {
         super(metaInfo);
@@ -92,7 +92,7 @@ public class GrpcConnection extends Connection {
             executeFuture.get();
         } catch (Throwable throwable) {
             if (throwable instanceof ExecutionException && throwable.getCause() != null
-                    && throwable.getCause() instanceof NacosRuntimeException) {
+                && throwable.getCause() instanceof NacosRuntimeException) {
                 throw (NacosRuntimeException) throwable.getCause();
             }
             throw new NacosRuntimeException(NacosException.SERVER_ERROR, throwable);
@@ -108,19 +108,21 @@ public class GrpcConnection extends Connection {
             boolean ready = ((ServerCallStreamObserver<?>) streamObserver).isReady();
             if (!ready) {
                 if (tpsControlManager == null) {
-                    synchronized (GrpcConnection.class.getClass()) {
+                    synchronized (GrpcConnection.class) {
                         if (tpsControlManager == null) {
-                            tpsControlManager = ControlManagerCenter.getInstance().getTpsControlManager();
+                            tpsControlManager =
+                                ControlManagerCenter.getInstance().getTpsControlManager();
                             tpsControlManager.registerTpsPoint("SERVER_PUSH_BLOCK");
                         }
                     }
                 }
                 TpsCheckRequest tpsCheckRequest = new TpsCheckRequest("SERVER_PUSH_BLOCK",
-                        this.getMetaInfo().getConnectionId(), this.getMetaInfo().getClientIp());
+                    this.getMetaInfo().getConnectionId(), this.getMetaInfo().getClientIp());
                 //record block only.
                 tpsControlManager.check(tpsCheckRequest);
                 getMetaInfo().recordPushQueueBlockTimes();
-                throw new ConnectionBusyException("too much bytes on sending queue of this stream.");
+                throw new ConnectionBusyException(
+                    "too much bytes on sending queue of this stream.");
             } else {
                 getMetaInfo().clearPushQueueBlockTimes();
             }
@@ -133,23 +135,33 @@ public class GrpcConnection extends Connection {
             try {
                 connectionId = getMetaInfo().getConnectionId();
                 Loggers.REMOTE_DIGEST.info("[{}]Send request to client ,payload={}", connectionId,
-                        payload.toByteString().toStringUtf8());
+                    payload.toByteString().toStringUtf8());
             } catch (Throwable throwable) {
-                Loggers.REMOTE_DIGEST.warn("[{}]Send request to client trace error, ,error={}", connectionId,
-                        throwable);
+                Loggers.REMOTE_DIGEST.warn("[{}]Send request to client trace error, ,error={}",
+                    connectionId,
+                    throwable);
             }
         }
     }
     
-    private DefaultRequestFuture sendRequestInner(Request request, RequestCallBack callBack) throws NacosException {
+    private DefaultRequestFuture sendRequestInner(Request request, RequestCallBack callBack)
+        throws NacosException {
         final String requestId = String.valueOf(PushAckIdGenerator.getNextId());
         request.setRequestId(requestId);
         
-        DefaultRequestFuture defaultPushFuture = new DefaultRequestFuture(getMetaInfo().getConnectionId(), requestId,
-                callBack, () -> RpcAckCallbackSynchronizer.clearFuture(getMetaInfo().getConnectionId(), requestId));
+        DefaultRequestFuture defaultPushFuture =
+            new DefaultRequestFuture(getMetaInfo().getConnectionId(), requestId,
+                callBack, () -> RpcAckCallbackSynchronizer
+                    .clearFuture(getMetaInfo().getConnectionId(), requestId));
         
-        RpcAckCallbackSynchronizer.syncCallback(getMetaInfo().getConnectionId(), requestId, defaultPushFuture);
-        sendRequestNoAck(request);
+        RpcAckCallbackSynchronizer.syncCallback(getMetaInfo().getConnectionId(), requestId,
+            defaultPushFuture);
+        try {
+            sendRequestNoAck(request);
+        } catch (NacosRuntimeException nacosRuntimeException) {
+            defaultPushFuture.cancel(true);
+            throw nacosRuntimeException;
+        }
         return defaultPushFuture;
     }
     
@@ -161,7 +173,8 @@ public class GrpcConnection extends Connection {
         } catch (Exception e) {
             throw new NacosException(NacosException.SERVER_ERROR, e);
         } finally {
-            RpcAckCallbackSynchronizer.clearFuture(getMetaInfo().getConnectionId(), pushFuture.getRequestId());
+            RpcAckCallbackSynchronizer.clearFuture(getMetaInfo().getConnectionId(),
+                pushFuture.getRequestId());
         }
     }
     
@@ -171,7 +184,8 @@ public class GrpcConnection extends Connection {
     }
     
     @Override
-    public void asyncRequest(Request request, RequestCallBack requestCallBack) throws NacosException {
+    public void asyncRequest(Request request, RequestCallBack requestCallBack)
+        throws NacosException {
         sendRequestInner(request, requestCallBack);
     }
     
@@ -189,7 +203,8 @@ public class GrpcConnection extends Connection {
             try {
                 closeBiStream();
             } catch (Throwable e) {
-                Loggers.REMOTE_DIGEST.warn("[{}] connection  close bi stream exception  : {}", connectionId, e);
+                Loggers.REMOTE_DIGEST.warn("[{}] connection  close bi stream exception  : {}",
+                    connectionId, e);
             }
             channel.close();
             
@@ -200,7 +215,8 @@ public class GrpcConnection extends Connection {
     
     private void closeBiStream() {
         if (streamObserver instanceof ServerCallStreamObserver) {
-            ServerCallStreamObserver serverCallStreamObserver = ((ServerCallStreamObserver) streamObserver);
+            ServerCallStreamObserver serverCallStreamObserver =
+                ((ServerCallStreamObserver) streamObserver);
             if (!serverCallStreamObserver.isCancelled()) {
                 serverCallStreamObserver.onCompleted();
             }

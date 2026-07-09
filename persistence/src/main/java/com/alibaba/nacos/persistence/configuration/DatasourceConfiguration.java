@@ -27,24 +27,25 @@ import org.springframework.context.ConfigurableApplicationContext;
  *
  * @author xiweng.yy
  */
-public class DatasourceConfiguration implements ApplicationContextInitializer<ConfigurableApplicationContext> {
+public class DatasourceConfiguration
+    implements ApplicationContextInitializer<ConfigurableApplicationContext> {
     
     /**
      * Standalone mode uses DB.
      */
-    public static boolean useExternalDB = false;
+    public static boolean useExternalDb = false;
     
     /**
      * Inline storage value = ${nacos.standalone}.
      */
     public static boolean embeddedStorage = EnvUtil.getStandaloneMode();
     
-    public static boolean isUseExternalDB() {
-        return useExternalDB;
+    public static boolean isUseExternalDb() {
+        return useExternalDb;
     }
     
-    public static void setUseExternalDB(boolean useExternalDB) {
-        DatasourceConfiguration.useExternalDB = useExternalDB;
+    public static void setUseExternalDb(boolean useExternalDb) {
+        DatasourceConfiguration.useExternalDb = useExternalDb;
     }
     
     public static boolean isEmbeddedStorage() {
@@ -59,25 +60,27 @@ public class DatasourceConfiguration implements ApplicationContextInitializer<Co
         // External data sources are used by default in cluster mode
         String platform = DatasourcePlatformUtil.getDatasourcePlatform("");
         boolean useExternalStorage =
-                !PersistenceConstant.EMPTY_DATASOURCE_PLATFORM.equalsIgnoreCase(platform) && !PersistenceConstant.DERBY
-                        .equalsIgnoreCase(platform);
-        setUseExternalDB(useExternalStorage);
+            !PersistenceConstant.EMPTY_DATASOURCE_PLATFORM.equalsIgnoreCase(platform)
+                && !PersistenceConstant.DERBY
+                    .equalsIgnoreCase(platform);
+        setUseExternalDb(useExternalStorage);
         
-        // must initialize after setUseExternalDB
+        // must initialize after setUseExternalDb
         // This value is true in stand-alone mode and false in cluster mode
         // If this value is set to true in cluster mode, nacos's distributed storage engine is turned on
         // default value is depend on ${nacos.standalone}
         
-        if (isUseExternalDB()) {
+        if (isUseExternalDb()) {
             setEmbeddedStorage(false);
         } else {
-            boolean embeddedStorage = isEmbeddedStorage() || Boolean.getBoolean(PersistenceConstant.EMBEDDED_STORAGE);
+            boolean embeddedStorage =
+                isEmbeddedStorage() || Boolean.getBoolean(PersistenceConstant.EMBEDDED_STORAGE);
             setEmbeddedStorage(embeddedStorage);
             
             // If the embedded data source storage is not turned on, it is automatically
             // upgraded to the external data source storage, as before
             if (!embeddedStorage) {
-                setUseExternalDB(true);
+                setUseExternalDb(true);
             }
         }
     }

@@ -16,23 +16,22 @@
 
 package com.alibaba.nacos.common.remote.client;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class RpcConstantsTest {
+class RpcConstantsTest {
     
     @Test
-    public void testGetRpcParams() {
-        Class clazz = RpcConstants.class;
-        Field[] declaredFields = clazz.getDeclaredFields();
+    void testGetRpcParams() {
+        Field[] declaredFields = RpcConstants.class.getDeclaredFields();
         int i = 0;
         for (Field declaredField : declaredFields) {
             declaredField.setAccessible(true);
             if (declaredField.getType().equals(String.class) && null != declaredField.getAnnotation(
-                    RpcConstants.RpcConfigLabel.class)) {
+                RpcConstants.RpcConfigLabel.class)) {
                 i++;
             }
         }

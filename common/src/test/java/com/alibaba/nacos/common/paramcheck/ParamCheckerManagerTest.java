@@ -16,30 +16,35 @@
 
 package com.alibaba.nacos.common.paramcheck;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ParamCheckerManagerTest {
+class ParamCheckerManagerTest {
     
     @Test
-    public void testGetParamCheckerNonExistType() {
-        assertTrue(ParamCheckerManager.getInstance().getParamChecker("non") instanceof DefaultParamChecker);
+    void testGetParamCheckerNonExistType() {
+        assertTrue(ParamCheckerManager.getInstance()
+            .getParamChecker("non") instanceof DefaultParamChecker);
     }
     
     @Test
-    public void testGetParamCheckerNull() {
-        assertTrue(ParamCheckerManager.getInstance().getParamChecker("") instanceof DefaultParamChecker);
-        assertTrue(ParamCheckerManager.getInstance().getParamChecker(null) instanceof DefaultParamChecker);
+    void testGetParamCheckerNull() {
+        assertTrue(
+            ParamCheckerManager.getInstance().getParamChecker("") instanceof DefaultParamChecker);
+        assertTrue(
+            ParamCheckerManager.getInstance().getParamChecker(null) instanceof DefaultParamChecker);
     }
     
     @Test
-    public void testGetParamCheckerDefault() {
-        assertTrue(ParamCheckerManager.getInstance().getParamChecker("default") instanceof DefaultParamChecker);
+    void testGetParamCheckerDefault() {
+        assertTrue(ParamCheckerManager.getInstance()
+            .getParamChecker("default") instanceof DefaultParamChecker);
     }
     
     @Test
-    public void testGetParamCheckerOther() {
-        assertTrue(ParamCheckerManager.getInstance().getParamChecker("mock") instanceof MockParamChecker);
+    void testGetParamCheckerOther() {
+        assertTrue(
+            ParamCheckerManager.getInstance().getParamChecker("mock") instanceof MockParamChecker);
     }
 }

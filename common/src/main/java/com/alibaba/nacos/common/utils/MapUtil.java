@@ -22,7 +22,6 @@ import java.util.Collection;
 import java.util.Dictionary;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Predicate;
 import java.util.function.BiFunction;
 
 /**
@@ -142,8 +141,9 @@ public class MapUtil {
      * @return
      */
     @NotThreadSafe
-    public static <K, C, V, T> V computeIfAbsent(Map<K, V> target, K key, BiFunction<C, T, V> mappingFunction, C param1,
-            T param2) {
+    public static <K, C, V, T> V computeIfAbsent(Map<K, V> target, K key,
+        BiFunction<C, T, V> mappingFunction, C param1,
+        T param2) {
         
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(key, "key");
@@ -155,17 +155,4 @@ public class MapUtil {
         
     }
     
-    /**
-     * remove value, Thread safety depends on whether the Map is a thread-safe Map.
-     *
-     * @param map         map
-     * @param key         key
-     * @param removeJudge judge this key can be remove
-     * @param <K>         key type
-     * @param <V>         value type
-     * @return value
-     */
-    public static <K, V> V removeKey(Map<K, V> map, K key, Predicate<V> removeJudge) {
-        return map.computeIfPresent(key, (k, v) -> removeJudge.test(v) ? null : v);
-    }
 }

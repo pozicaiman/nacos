@@ -17,15 +17,16 @@
 package com.alibaba.nacos.persistence.datasource;
 
 import com.zaxxer.hikari.HikariDataSource;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class DataSourcePoolPropertiesTest {
+class DataSourcePoolPropertiesTest {
     
-    private static final String JDBC_URL = "jdbc:derby://127.0.0.1:3306/nacos_devtest?characterEncoding=utf8&serverTimezone=UTC";
+    private static final String JDBC_URL =
+        "jdbc:derby://127.0.0.1:3306/nacos_devtest?characterEncoding=utf8&serverTimezone=UTC";
     
     private static final String JDBC_DRIVER_CLASS_NAME = "org.apache.derby.jdbc.EmbeddedDriver";
     
@@ -39,8 +40,8 @@ public class DataSourcePoolPropertiesTest {
     
     private MockEnvironment environment;
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         environment = new MockEnvironment();
         environment.setProperty("db.user", USERNAME);
         environment.setProperty("db.password", PASSWORD);
@@ -49,7 +50,7 @@ public class DataSourcePoolPropertiesTest {
     }
     
     @Test
-    public void testBuild() {
+    void testBuild() {
         DataSourcePoolProperties poolProperties = DataSourcePoolProperties.build(environment);
         poolProperties.setJdbcUrl(JDBC_URL);
         poolProperties.setDriverClassName(JDBC_DRIVER_CLASS_NAME);
@@ -61,7 +62,8 @@ public class DataSourcePoolPropertiesTest {
         assertEquals(USERNAME, actual.getUsername());
         assertEquals(PASSWORD, actual.getPassword());
         assertEquals(CONNECTION_TIMEOUT.longValue(), actual.getConnectionTimeout());
-        assertEquals(DataSourcePoolProperties.DEFAULT_VALIDATION_TIMEOUT, actual.getValidationTimeout());
+        assertEquals(DataSourcePoolProperties.DEFAULT_VALIDATION_TIMEOUT,
+            actual.getValidationTimeout());
         assertEquals(DataSourcePoolProperties.DEFAULT_IDLE_TIMEOUT, actual.getIdleTimeout());
         assertEquals(MAX_POOL_SIZE.intValue(), actual.getMaximumPoolSize());
         assertEquals(DataSourcePoolProperties.DEFAULT_MINIMUM_IDLE, actual.getMinimumIdle());

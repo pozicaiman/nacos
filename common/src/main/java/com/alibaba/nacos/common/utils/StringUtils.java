@@ -16,7 +16,6 @@
 
 package com.alibaba.nacos.common.utils;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,6 +23,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.regex.Pattern;
 
 /**
  * string util.
@@ -48,21 +48,14 @@ public class StringUtils {
     
     private static final String[] EMPTY_STRING_ARRAY = {};
     
-    private static final String TOP_PATH = "..";
+    public static final String TOP_PATH = "..";
     
-    private static final String FOLDER_SEPARATOR = "/";
+    public static final String FOLDER_SEPARATOR = "/";
     
-    private static final String WINDOWS_FOLDER_SEPARATOR = "\\";
+    public static final String WINDOWS_FOLDER_SEPARATOR = "\\";
     
-    /**
-     * <p>Create a string with encoding format as utf8.</p>
-     *
-     * @param bytes the bytes that make up the string
-     * @return created string
-     */
-    public static String newStringForUtf8(byte[] bytes) {
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
+    public static final Pattern UUID_PATTERN = Pattern.compile(
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$");
     
     /**
      * <p>Checks if a string is  empty (""), null and  whitespace only.</p>
@@ -210,12 +203,14 @@ public class StringUtils {
         StringBuilder stringBuilder = new StringBuilder();
         Object[] objects = collection.toArray();
         
+        boolean first = true;
         for (int i = 0; i < collection.size(); i++) {
             if (objects[i] != null) {
-                stringBuilder.append(objects[i]);
-                if (i != collection.size() - 1 && separator != null) {
+                if (!first && separator != null) {
                     stringBuilder.append(separator);
                 }
+                stringBuilder.append(objects[i]);
+                first = false;
             }
         }
         
@@ -308,7 +303,8 @@ public class StringUtils {
      * @return {@code true} if the CharSequence starts with the prefix or both {@code null}
      * @see java.lang.String#startsWith(String)
      */
-    private static boolean startsWith(final CharSequence str, final CharSequence prefix, final boolean ignoreCase) {
+    private static boolean startsWith(final CharSequence str, final CharSequence prefix,
+        final boolean ignoreCase) {
         if (str == null || prefix == null) {
             return str == null && prefix == null;
         }
@@ -416,7 +412,7 @@ public class StringUtils {
      * @see String#trim()
      */
     public static String[] tokenizeToStringArray(String str, String delimiters, boolean trimTokens,
-            boolean ignoreEmptyTokens) {
+        boolean ignoreEmptyTokens) {
         
         if (str == null) {
             return EMPTY_STRING_ARRAY;
@@ -445,7 +441,8 @@ public class StringUtils {
      * @return the resulting {@code String} array
      */
     public static String[] toStringArray(Collection<String> collection) {
-        return (!CollectionUtils.isEmpty(collection) ? collection.toArray(EMPTY_STRING_ARRAY) : EMPTY_STRING_ARRAY);
+        return (!CollectionUtils.isEmpty(collection) ? collection.toArray(EMPTY_STRING_ARRAY)
+            : EMPTY_STRING_ARRAY);
     }
     
     /**
@@ -550,7 +547,8 @@ public class StringUtils {
             pathElements.addFirst(TOP_PATH);
         }
         // If nothing else left, at least explicitly point to current path.
-        if (pathElements.size() == 1 && pathElements.getLast().isEmpty() && !prefix.endsWith(FOLDER_SEPARATOR)) {
+        if (pathElements.size() == 1 && pathElements.getLast().isEmpty()
+            && !prefix.endsWith(FOLDER_SEPARATOR)) {
             pathElements.addFirst(DOT);
         }
         
@@ -583,13 +581,15 @@ public class StringUtils {
      * @param suffix the {@code String} to end each element with
      * @return the delimited {@code String}
      */
-    public static String collectionToDelimitedString(Collection<?> coll, String delim, String prefix, String suffix) {
+    public static String collectionToDelimitedString(Collection<?> coll, String delim,
+        String prefix, String suffix) {
         
         if (CollectionUtils.isEmpty(coll)) {
             return "";
         }
         
-        int totalLength = coll.size() * (prefix.length() + suffix.length()) + (coll.size() - 1) * delim.length();
+        int totalLength =
+            coll.size() * (prefix.length() + suffix.length()) + (coll.size() - 1) * delim.length();
         for (Object element : coll) {
             totalLength += String.valueOf(element).length();
         }
@@ -651,7 +651,8 @@ public class StringUtils {
      * @return an array of the tokens in the list
      * @see #tokenizeToStringArray
      */
-    public static String[] delimitedListToStringArray(String str, String delimiter, String charsToDelete) {
+    public static String[] delimitedListToStringArray(String str, String delimiter,
+        String charsToDelete) {
         
         if (str == null) {
             return EMPTY_STRING_ARRAY;
@@ -807,5 +808,9 @@ public class StringUtils {
         char[] chars = str.toCharArray();
         chars[0] = updatedChar;
         return new String(chars);
+    }
+    
+    public static boolean isUuidString(String str) {
+        return UUID_PATTERN.matcher(str).matches();
     }
 }

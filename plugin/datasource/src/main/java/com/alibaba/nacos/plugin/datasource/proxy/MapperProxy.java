@@ -25,8 +25,12 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * DataSource plugin Mapper sql proxy.
@@ -41,17 +45,29 @@ public class MapperProxy implements InvocationHandler {
     
     private static final Map<String, Mapper> SINGLE_MAPPER_PROXY_MAP = new ConcurrentHashMap<>(16);
     
+    /**
+     * Creates a proxy instance for the sub-interfaces of Mapper.class implemented by the given object.
+     */
     public <R> R createProxy(Mapper mapper) {
         this.mapper = mapper;
-        return (R) Proxy.newProxyInstance(MapperProxy.class.getClassLoader(), mapper.getClass().getInterfaces(), this);
+        Class<?> clazz = mapper.getClass();
+        Set<Class<?>> interfacesSet = new HashSet<>();
+        while (!clazz.equals(Object.class)) {
+            interfacesSet.addAll(Arrays.stream(clazz.getInterfaces())
+                .filter(Mapper.class::isAssignableFrom)
+                .collect(Collectors.toSet()));
+            clazz = clazz.getSuperclass();
+        }
+        return (R) Proxy.newProxyInstance(MapperProxy.class.getClassLoader(),
+            interfacesSet.toArray(new Class<?>[interfacesSet.size()]), this);
     }
     
     /**
      * create proxy-mapper single instead of using method createProxy.
      */
     public static <R> R createSingleProxy(Mapper mapper) {
-        return (R) SINGLE_MAPPER_PROXY_MAP.computeIfAbsent(mapper.getClass().getSimpleName(), key ->
-                new MapperProxy().createProxy(mapper));
+        return (R) SINGLE_MAPPER_PROXY_MAP.computeIfAbsent(mapper.getClass().getSimpleName(),
+            key -> new MapperProxy().createProxy(mapper));
     }
     
     @Override
@@ -66,7 +82,8 @@ public class MapperProxy implements InvocationHandler {
         } else {
             sql = invoke.toString();
         }
-        LOGGER.info("[{}] METHOD : {}, SQL : {}, ARGS : {}", className, methodName, sql, JacksonUtils.toJson(args));
+        LOGGER.info("[{}] METHOD : {}, SQL : {}, ARGS : {}", className, methodName, sql,
+            JacksonUtils.toJson(args));
         return invoke;
     }
 }

@@ -22,19 +22,20 @@ import com.alibaba.nacos.api.ability.constant.AbilityStatus;
 import com.alibaba.nacos.common.notify.Event;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.notify.listener.Subscriber;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class AbstractAbilityControlManagerTest {
+class AbstractAbilityControlManagerTest {
     
     private AbstractAbilityControlManager abilityControlManager;
     
@@ -46,17 +47,19 @@ public class AbstractAbilityControlManagerTest {
     
     private boolean notified = false;
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         mockSubscriber = new Subscriber<AbstractAbilityControlManager.AbilityUpdateEvent>() {
+            
             @Override
             public void onEvent(AbstractAbilityControlManager.AbilityUpdateEvent event) {
                 notified = true;
                 try {
-                    assertEquals(AbilityKey.SERVER_TEST_1, event.getAbilityKey());
+                    assertEquals(AbilityKey.SERVER_FUZZY_WATCH, event.getAbilityKey());
                     assertEquals(isOn, event.isOn());
                     assertEquals(2, event.getAbilityTable().size());
-                    assertEquals(isOn, event.getAbilityTable().get(AbilityKey.SERVER_TEST_1.getName()));
+                    assertEquals(isOn,
+                        event.getAbilityTable().get(AbilityKey.SERVER_FUZZY_WATCH.getName()));
                 } catch (AssertionError error) {
                     assertionError = error;
                 }
@@ -71,17 +74,17 @@ public class AbstractAbilityControlManagerTest {
         NotifyCenter.registerSubscriber(mockSubscriber);
     }
     
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         NotifyCenter.deregisterSubscriber(mockSubscriber);
         assertionError = null;
         notified = false;
     }
     
     @Test
-    public void testEnableCurrentNodeAbility() throws InterruptedException {
+    void testEnableCurrentNodeAbility() throws InterruptedException {
         isOn = true;
-        abilityControlManager.enableCurrentNodeAbility(AbilityKey.SERVER_TEST_1);
+        abilityControlManager.enableCurrentNodeAbility(AbilityKey.SERVER_FUZZY_WATCH);
         TimeUnit.MILLISECONDS.sleep(1100);
         assertTrue(notified);
         if (null != assertionError) {
@@ -90,9 +93,9 @@ public class AbstractAbilityControlManagerTest {
     }
     
     @Test
-    public void testDisableCurrentNodeAbility() throws InterruptedException {
+    void testDisableCurrentNodeAbility() throws InterruptedException {
         isOn = false;
-        abilityControlManager.disableCurrentNodeAbility(AbilityKey.SERVER_TEST_1);
+        abilityControlManager.disableCurrentNodeAbility(AbilityKey.SERVER_FUZZY_WATCH);
         TimeUnit.MILLISECONDS.sleep(1100);
         assertTrue(notified);
         if (null != assertionError) {
@@ -101,44 +104,49 @@ public class AbstractAbilityControlManagerTest {
     }
     
     @Test
-    public void testIsCurrentNodeAbilityRunning() {
+    void testIsCurrentNodeAbilityRunning() {
         assertEquals(AbilityStatus.SUPPORTED,
-                abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SERVER_TEST_1));
+            abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SERVER_FUZZY_WATCH));
         assertEquals(AbilityStatus.NOT_SUPPORTED,
-                abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SERVER_TEST_2));
+            abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SERVER_DISTRIBUTED_LOCK));
         assertEquals(AbilityStatus.UNKNOWN,
-                abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SDK_CLIENT_TEST_1));
+            abilityControlManager.isCurrentNodeAbilityRunning(AbilityKey.SDK_CLIENT_FUZZY_WATCH));
     }
     
     @Test
-    public void testGetCurrentNodeAbilities() {
-        Map<String, Boolean> actual = abilityControlManager.getCurrentNodeAbilities(AbilityMode.SERVER);
+    void testGetCurrentNodeAbilities() {
+        Map<String, Boolean> actual =
+            abilityControlManager.getCurrentNodeAbilities(AbilityMode.SERVER);
         assertEquals(2, actual.size());
-        assertTrue(actual.containsKey(AbilityKey.SERVER_TEST_1.getName()));
-        assertTrue(actual.containsKey(AbilityKey.SERVER_TEST_2.getName()));
+        assertTrue(actual.containsKey(AbilityKey.SERVER_FUZZY_WATCH.getName()));
+        assertTrue(actual.containsKey(AbilityKey.SERVER_DISTRIBUTED_LOCK.getName()));
         actual = abilityControlManager.getCurrentNodeAbilities(AbilityMode.SDK_CLIENT);
         assertTrue(actual.isEmpty());
     }
     
     @Test
-    public void testGetPriority() {
+    void testGetPriority() {
         assertEquals(Integer.MIN_VALUE, abilityControlManager.getPriority());
     }
     
-    @Test(expected = IllegalStateException.class)
-    public void testInitFailed() {
-        abilityControlManager = new AbstractAbilityControlManager() {
-            @Override
-            protected Map<AbilityMode, Map<AbilityKey, Boolean>> initCurrentNodeAbilities() {
-                Map<AbilityKey, Boolean> abilities = Collections.singletonMap(AbilityKey.SDK_CLIENT_TEST_1, true);
-                return Collections.singletonMap(AbilityMode.SERVER, abilities);
-            }
-    
-            @Override
-            public int getPriority() {
-                return 0;
-            }
-        };
+    @Test
+    void testInitFailed() {
+        assertThrows(IllegalStateException.class, () -> {
+            abilityControlManager = new AbstractAbilityControlManager() {
+                
+                @Override
+                protected Map<AbilityMode, Map<AbilityKey, Boolean>> initCurrentNodeAbilities() {
+                    Map<AbilityKey, Boolean> abilities =
+                        Collections.singletonMap(AbilityKey.SDK_CLIENT_FUZZY_WATCH, true);
+                    return Collections.singletonMap(AbilityMode.SERVER, abilities);
+                }
+                
+                @Override
+                public int getPriority() {
+                    return 0;
+                }
+            };
+        });
     }
     
     private static final class MockAbilityControlManager extends AbstractAbilityControlManager {
@@ -146,8 +154,8 @@ public class AbstractAbilityControlManagerTest {
         @Override
         protected Map<AbilityMode, Map<AbilityKey, Boolean>> initCurrentNodeAbilities() {
             Map<AbilityKey, Boolean> abilities = new HashMap<>(2);
-            abilities.put(AbilityKey.SERVER_TEST_1, true);
-            abilities.put(AbilityKey.SERVER_TEST_2, false);
+            abilities.put(AbilityKey.SERVER_FUZZY_WATCH, true);
+            abilities.put(AbilityKey.SERVER_DISTRIBUTED_LOCK, false);
             return Collections.singletonMap(AbilityMode.SERVER, abilities);
         }
         

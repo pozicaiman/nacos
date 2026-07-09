@@ -32,13 +32,12 @@ import com.alibaba.nacos.api.remote.response.Response;
 import com.alibaba.nacos.common.remote.ConnectionType;
 import com.alibaba.nacos.common.remote.client.grpc.DefaultGrpcClientConfig;
 import com.alibaba.nacos.common.remote.client.grpc.GrpcConnection;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 
 import java.lang.reflect.Field;
@@ -57,11 +56,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
@@ -74,8 +74,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
-public class RpcClientTest {
+@ExtendWith(MockitoExtension.class)
+class RpcClientTest {
     
     RpcClient rpcClient;
     
@@ -99,9 +99,11 @@ public class RpcClientTest {
     
     RpcClientConfig rpcClientConfig;
     
-    @Before
-    public void setUp() throws NoSuchFieldException, IllegalAccessException, NoSuchMethodException {
+    @BeforeEach
+    void setUp() throws NoSuchFieldException, IllegalAccessException, NoSuchMethodException,
+        InvocationTargetException {
         rpcClientConfig = spy(new RpcClientConfig() {
+            
             @Override
             public String name() {
                 return "test";
@@ -138,6 +140,7 @@ public class RpcClientTest {
             }
         });
         rpcClient = spy(new RpcClient(rpcClientConfig) {
+            
             @Override
             public ConnectionType getConnectionType() {
                 return null;
@@ -159,11 +162,25 @@ public class RpcClientTest {
         
         reconnectionSignalField = RpcClient.class.getDeclaredField("reconnectionSignal");
         reconnectionSignalField.setAccessible(true);
-        Field modifiersField1 = Field.class.getDeclaredField("modifiers");
-        modifiersField1.setAccessible(true);
-        modifiersField1.setInt(reconnectionSignalField, reconnectionSignalField.getModifiers() & ~Modifier.FINAL);
         
-        resolveServerInfoMethod = RpcClient.class.getDeclaredMethod("resolveServerInfo", String.class);
+        Method getDeclaredFields0 =
+            Class.class.getDeclaredMethod("getDeclaredFields0", boolean.class);
+        getDeclaredFields0.setAccessible(true);
+        Field[] fields = (Field[]) getDeclaredFields0.invoke(Field.class, false);
+        Field modifiersField1 = null;
+        for (Field each : fields) {
+            if ("modifiers".equals(each.getName())) {
+                modifiersField1 = each;
+            }
+        }
+        if (modifiersField1 != null) {
+            modifiersField1.setAccessible(true);
+            modifiersField1.setInt(reconnectionSignalField,
+                reconnectionSignalField.getModifiers() & ~Modifier.FINAL);
+        }
+        
+        resolveServerInfoMethod =
+            RpcClient.class.getDeclaredMethod("resolveServerInfo", String.class);
         resolveServerInfoMethod.setAccessible(true);
         
         healthCheck = RpcClient.class.getDeclaredMethod("healthCheck");
@@ -178,8 +195,8 @@ public class RpcClientTest {
         notInvoke = invocationOnMock -> null;
     }
     
-    @After
-    public void tearDown() throws IllegalAccessException, NacosException {
+    @AfterEach
+    void tearDown() throws IllegalAccessException, NacosException {
         rpcClientConfig.labels().clear();
         rpcClient.rpcClientStatus.set(RpcClientStatus.WAIT_INIT);
         serverListFactoryField.set(rpcClient, null);
@@ -191,7 +208,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testInitServerListFactory() {
+    void testInitServerListFactory() {
         rpcClient.rpcClientStatus.set(RpcClientStatus.WAIT_INIT);
         rpcClient.serverListFactory(serverListFactory);
         assertEquals(RpcClientStatus.INITIALIZED, rpcClient.rpcClientStatus.get());
@@ -201,6 +218,7 @@ public class RpcClientTest {
         assertEquals(RpcClientStatus.INITIALIZED, rpcClient.rpcClientStatus.get());
         
         RpcClient client1 = new RpcClient(new RpcClientConfig() {
+            
             @Override
             public String name() {
                 return "test";
@@ -236,6 +254,7 @@ public class RpcClientTest {
                 return new HashMap<>();
             }
         }, serverListFactory) {
+            
             @Override
             public ConnectionType getConnectionType() {
                 return null;
@@ -254,6 +273,7 @@ public class RpcClientTest {
         assertEquals(RpcClientStatus.INITIALIZED, client1.rpcClientStatus.get());
         
         RpcClient client2 = new RpcClient(rpcClientConfig, serverListFactory) {
+            
             @Override
             public ConnectionType getConnectionType() {
                 return null;
@@ -273,8 +293,9 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testLabels() {
-        when(rpcClientConfig.labels()).thenReturn(Collections.singletonMap("labelKey1", "labelValue1"));
+    void testLabels() {
+        when(rpcClientConfig.labels())
+            .thenReturn(Collections.singletonMap("labelKey1", "labelValue1"));
         Map.Entry<String, String> element = rpcClient.getLabels().entrySet().iterator().next();
         assertEquals("labelKey1", element.getKey());
         assertEquals("labelValue1", element.getValue());
@@ -288,7 +309,8 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testOnServerListChangeWhenCurrentConnectionIsNullThenDoNothing() throws IllegalAccessException {
+    void testOnServerListChangeWhenCurrentConnectionIsNullThenDoNothing()
+        throws IllegalAccessException {
         int beforeSize = ((Queue<?>) reconnectionSignalField.get(rpcClient)).size();
         rpcClient.serverListFactory(serverListFactory);
         
@@ -299,7 +321,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testOnServerListChangeWhenServiceInfoIsNullThenDoNothing() throws IllegalAccessException {
+    void testOnServerListChangeWhenServiceInfoIsNullThenDoNothing() throws IllegalAccessException {
         int beforeSize = ((Queue<?>) reconnectionSignalField.get(rpcClient)).size();
         rpcClient.currentConnection = mock(Connection.class);
         
@@ -310,11 +332,12 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testOnServerListChangeWhenCurrentConnectionIsNotInServerListThenSwitchServerAsync()
-            throws IllegalAccessException {
+    void testOnServerListChangeWhenCurrentConnectionIsNotInServerListThenSwitchServerAsync()
+        throws IllegalAccessException {
         final int beforeSize = ((Queue<?>) reconnectionSignalField.get(rpcClient)).size();
         rpcClient.serverListFactory(serverListFactory);
-        rpcClient.currentConnection = new GrpcConnection(new RpcClient.ServerInfo("10.10.10.10", 8848), null);
+        rpcClient.currentConnection =
+            new GrpcConnection(new RpcClient.ServerInfo("10.10.10.10", 8848), null);
         doReturn(Collections.singletonList("")).when(serverListFactory).getServerList();
         when(serverListFactory.getServerList()).thenReturn(Collections.singletonList("127.0.0.1"));
         rpcClient.onServerListChange();
@@ -324,11 +347,14 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testOnServerListChangeWhenCurrentConnectionIsInServerListThenDoNothing() throws IllegalAccessException {
+    void testOnServerListChangeWhenCurrentConnectionIsInServerListThenDoNothing()
+        throws IllegalAccessException {
         final int beforeSize = ((Queue<?>) reconnectionSignalField.get(rpcClient)).size();
         rpcClient.serverListFactory(serverListFactory);
-        rpcClient.currentConnection = new GrpcConnection(new RpcClient.ServerInfo("10.10.10.10", 8848), null);
-        doReturn(Collections.singletonList("http://10.10.10.10:8848")).when(serverListFactory).getServerList();
+        rpcClient.currentConnection =
+            new GrpcConnection(new RpcClient.ServerInfo("10.10.10.10", 8848), null);
+        doReturn(Collections.singletonList("http://10.10.10.10:8848")).when(serverListFactory)
+            .getServerList();
         rpcClient.onServerListChange();
         
         int afterSize = ((Queue<?>) reconnectionSignalField.get(rpcClient)).size();
@@ -336,33 +362,37 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testResolveServerInfo1() throws InvocationTargetException, IllegalAccessException {
+    void testResolveServerInfo1() throws InvocationTargetException, IllegalAccessException {
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "10.10.10.10::8848")).getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "10.10.10.10::8848"))
+                .getAddress());
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "10.10.10.10:8848")).getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "10.10.10.10:8848"))
+                .getAddress());
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10:8848"))
-                        .getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient,
+                "http://10.10.10.10:8848")).getAddress());
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10::8848"))
-                        .getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient,
+                "http://10.10.10.10::8848")).getAddress());
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10")).getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10"))
+                .getAddress());
         assertEquals("10.10.10.10:8848",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "https://10.10.10.10::8848"))
-                        .getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient,
+                "https://10.10.10.10::8848")).getAddress());
     }
     
     @Test
-    public void testResolveServerInfo2() throws InvocationTargetException, IllegalAccessException {
+    void testResolveServerInfo2() throws InvocationTargetException, IllegalAccessException {
         System.setProperty("nacos.server.port", "4424");
         assertEquals("10.10.10.10:4424",
-                ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10")).getAddress());
+            ((RpcClient.ServerInfo) resolveServerInfoMethod.invoke(rpcClient, "http://10.10.10.10"))
+                .getAddress());
     }
     
     @Test
-    public void testRequestSuccess() throws NacosException, NoSuchFieldException, IllegalAccessException {
+    void testRequestSuccess() throws NacosException, NoSuchFieldException, IllegalAccessException {
         rpcClient.currentConnection = connection;
         rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
         when(connection.request(any(), anyLong())).thenReturn(new HealthCheckResponse());
@@ -374,37 +404,45 @@ public class RpcClientTest {
         assertTrue(lastActiveTimeStamp <= (long) lastActiveTimeStampField.get(rpcClient));
     }
     
-    @Test(expected = NacosException.class)
-    public void testRequestWithoutAnyTry() throws NacosException {
-        when(rpcClientConfig.retryTimes()).thenReturn(-1);
-        rpcClient.request(null);
-    }
-    
-    @Test(expected = NacosException.class)
-    public void testRequestWhenClientAlreadyShutDownThenThrowException() throws NacosException {
-        rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
-        rpcClient.currentConnection = connection;
-        rpcClient.request(null);
-    }
-    
-    @Test(expected = NacosException.class)
-    public void testRequestWhenTimeoutThenThrowException() throws NacosException {
-        rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
-        rpcClient.currentConnection = connection;
-        doReturn(null).when(connection).request(any(), anyLong());
-        rpcClient.request(null, 10000);
-    }
-    
-    @Test(expected = NacosException.class)
-    public void testRequestWhenResponseErrorThenThrowException() throws NacosException {
-        rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
-        rpcClient.currentConnection = connection;
-        doReturn(new ErrorResponse()).when(connection).request(any(), anyLong());
-        rpcClient.request(null, 10000);
+    @Test
+    void testRequestWithoutAnyTry() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            when(rpcClientConfig.retryTimes()).thenReturn(-1);
+            rpcClient.request(null);
+        });
     }
     
     @Test
-    public void testRequestWhenResponseUnregisterThenSwitchServer() throws NacosException {
+    void testRequestWhenClientAlreadyShutDownThenThrowException() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
+            rpcClient.currentConnection = connection;
+            rpcClient.request(null);
+        });
+    }
+    
+    @Test
+    void testRequestWhenTimeoutThenThrowException() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
+            rpcClient.currentConnection = connection;
+            doReturn(null).when(connection).request(any(), anyLong());
+            rpcClient.request(null, 10000);
+        });
+    }
+    
+    @Test
+    void testRequestWhenResponseErrorThenThrowException() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
+            rpcClient.currentConnection = connection;
+            doReturn(new ErrorResponse()).when(connection).request(any(), anyLong());
+            rpcClient.request(null, 10000);
+        });
+    }
+    
+    @Test
+    void testRequestWhenResponseUnregisterThenSwitchServer() throws NacosException {
         rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
         rpcClient.currentConnection = connection;
         ErrorResponse errorResponse = new ErrorResponse();
@@ -420,11 +458,11 @@ public class RpcClientTest {
         
         assertEquals(RpcClientStatus.UNHEALTHY, rpcClient.rpcClientStatus.get());
         verify(rpcClient).switchServerAsync();
-        Assert.assertNotNull(exception);
+        assertNotNull(exception);
     }
     
     @Test
-    public void testAsyncRequestSuccess() throws NacosException {
+    void testAsyncRequestSuccess() throws NacosException {
         rpcClient.currentConnection = connection;
         rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
         RequestCallBack<?> requestCallBack = mock(RequestCallBack.class);
@@ -433,23 +471,27 @@ public class RpcClientTest {
         verify(connection).asyncRequest(any(), any());
     }
     
-    @Test(expected = NacosException.class)
-    public void testAsyncRequestWithoutAnyTry() throws NacosException {
-        when(rpcClientConfig.retryTimes()).thenReturn(-1);
-        rpcClient.asyncRequest(null, null);
-    }
-    
-    @Test(expected = NacosException.class)
-    public void testAsyncRequestWhenClientAlreadyShutDownThenThrowException() throws NacosException {
-        rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
-        rpcClient.currentConnection = connection;
-        RequestCallBack<?> requestCallBack = mock(RequestCallBack.class);
-        doReturn(10000L).when(requestCallBack).getTimeout();
-        rpcClient.asyncRequest(null, requestCallBack);
+    @Test
+    void testAsyncRequestWithoutAnyTry() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            when(rpcClientConfig.retryTimes()).thenReturn(-1);
+            rpcClient.asyncRequest(null, null);
+        });
     }
     
     @Test
-    public void testAsyncRequestWhenSendRequestFailedMannyTimesThenSwitchServer() throws NacosException {
+    void testAsyncRequestWhenClientAlreadyShutDownThenThrowException() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
+            rpcClient.currentConnection = connection;
+            RequestCallBack<?> requestCallBack = mock(RequestCallBack.class);
+            doReturn(10000L).when(requestCallBack).getTimeout();
+            rpcClient.asyncRequest(null, requestCallBack);
+        });
+    }
+    
+    @Test
+    void testAsyncRequestWhenSendRequestFailedMannyTimesThenSwitchServer() throws NacosException {
         rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
         rpcClient.currentConnection = connection;
         doThrow(new NacosException()).when(connection).asyncRequest(any(), any());
@@ -465,25 +507,29 @@ public class RpcClientTest {
         
         verify(connection, atLeastOnce()).asyncRequest(any(), any());
         verify(rpcClient).switchServerAsyncOnRequestFail();
-        Assert.assertNotNull(exception);
+        assertNotNull(exception);
         assertEquals(RpcClientStatus.UNHEALTHY, rpcClient.rpcClientStatus.get());
     }
     
-    @Test(expected = NacosException.class)
-    public void testRequestFutureWithoutAnyTry() throws NacosException {
-        when(rpcClientConfig.retryTimes()).thenReturn(-1);
-        rpcClient.requestFuture(null);
-    }
-    
-    @Test(expected = NacosException.class)
-    public void testRequestFutureWhenClientAlreadyShutDownThenThrowException() throws NacosException {
-        rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
-        rpcClient.currentConnection = connection;
-        rpcClient.requestFuture(null);
+    @Test
+    void testRequestFutureWithoutAnyTry() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            when(rpcClientConfig.retryTimes()).thenReturn(-1);
+            rpcClient.requestFuture(null);
+        });
     }
     
     @Test
-    public void testRequestFutureWhenRetryReachMaxRetryTimesThenSwitchServer() throws NacosException {
+    void testRequestFutureWhenClientAlreadyShutDownThenThrowException() throws NacosException {
+        assertThrows(NacosException.class, () -> {
+            rpcClient.rpcClientStatus.set(RpcClientStatus.SHUTDOWN);
+            rpcClient.currentConnection = connection;
+            rpcClient.requestFuture(null);
+        });
+    }
+    
+    @Test
+    void testRequestFutureWhenRetryReachMaxRetryTimesThenSwitchServer() throws NacosException {
         when(rpcClientConfig.timeOutMills()).thenReturn(5000L);
         when(rpcClientConfig.retryTimes()).thenReturn(3);
         rpcClient.rpcClientStatus.set(RpcClientStatus.RUNNING);
@@ -499,13 +545,14 @@ public class RpcClientTest {
         
         verify(connection, times(4)).requestFuture(any());
         verify(rpcClient).switchServerAsyncOnRequestFail();
-        Assert.assertNotNull(exception);
+        assertNotNull(exception);
         assertEquals(RpcClientStatus.UNHEALTHY, rpcClient.rpcClientStatus.get());
     }
     
     @Test
-    public void testRpcClientShutdownWhenClientDidntStart() throws NacosException {
+    void testRpcClientShutdownWhenClientDidntStart() throws NacosException {
         RpcClient rpcClient = new RpcClient(new RpcClientConfig() {
+            
             @Override
             public String name() {
                 return "test-client";
@@ -541,6 +588,7 @@ public class RpcClientTest {
                 return new HashMap<>();
             }
         }) {
+            
             @Override
             public ConnectionType getConnectionType() {
                 return null;
@@ -562,7 +610,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHealthCheck() throws IllegalAccessException, NacosException {
+    void testHealthCheck() throws IllegalAccessException, NacosException {
         Random random = new Random();
         int retry = random.nextInt(10);
         when(rpcClientConfig.healthCheckRetryTimes()).thenReturn(retry);
@@ -578,7 +626,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForIpv4WithPort() {
+    void testNextRpcServerForIpv4WithPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:7777");
@@ -589,7 +637,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForIpv4WithoutPort() {
+    void testNextRpcServerForIpv4WithoutPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1");
@@ -600,7 +648,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForIpv6WithPort() {
+    void testNextRpcServerForIpv6WithPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("[fe80::35ba:6827:c5ff:d161%11]:7777");
@@ -611,7 +659,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForIpv6WithoutPort() {
+    void testNextRpcServerForIpv6WithoutPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("[fe80::35ba:6827:c5ff:d161%11]");
@@ -622,7 +670,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForDomainWithPort() {
+    void testNextRpcServerForDomainWithPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("nacos.io:7777");
@@ -633,7 +681,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForDomainWithoutPort() {
+    void testNextRpcServerForDomainWithoutPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("nacos.io");
@@ -644,7 +692,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForLocalhostWithPort() {
+    void testNextRpcServerForLocalhostWithPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("localhost:7777");
@@ -655,7 +703,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNextRpcServerForLocalhostWithoutPort() {
+    void testNextRpcServerForLocalhostWithoutPort() {
         RpcClient rpcClient = buildTestNextRpcServerClient();
         rpcClient.serverListFactory(serverListFactory);
         when(serverListFactory.genNextServer()).thenReturn("localhost");
@@ -665,16 +713,19 @@ public class RpcClientTest {
         assertEquals(8848, actual.getServerPort());
     }
     
-    @Test(expected = IllegalArgumentException.class)
-    public void testNextRpcServerForEmpty() {
-        RpcClient rpcClient = buildTestNextRpcServerClient();
-        rpcClient.serverListFactory(serverListFactory);
-        when(serverListFactory.genNextServer()).thenReturn("");
-        rpcClient.nextRpcServer();
+    @Test
+    void testNextRpcServerForEmpty() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            RpcClient rpcClient = buildTestNextRpcServerClient();
+            rpcClient.serverListFactory(serverListFactory);
+            when(serverListFactory.genNextServer()).thenReturn("");
+            rpcClient.nextRpcServer();
+        });
     }
     
     private RpcClient buildTestNextRpcServerClient() {
         return new RpcClient(DefaultGrpcClientConfig.newBuilder().build()) {
+            
             @Override
             public ConnectionType getConnectionType() {
                 return null;
@@ -697,29 +748,32 @@ public class RpcClientTest {
         };
     }
     
-    @Test(expected = RuntimeException.class)
-    public void testHandleServerRequestWhenExceptionThenThrowException() throws RuntimeException {
-        RpcClient rpcClient = buildTestNextRpcServerClient();
-        Request request = new Request() {
-            @Override
-            public String getModule() {
-                return null;
-            }
-        };
-        rpcClient.serverRequestHandlers.add((req, conn) -> {
-            throw new RuntimeException();
+    @Test
+    void testHandleServerRequestWhenExceptionThenThrowException() throws RuntimeException {
+        assertThrows(RuntimeException.class, () -> {
+            RpcClient rpcClient = buildTestNextRpcServerClient();
+            Request request = new Request() {
+                
+                @Override
+                public String getModule() {
+                    return null;
+                }
+            };
+            rpcClient.serverRequestHandlers.add((req, conn) -> {
+                throw new RuntimeException();
+            });
+            rpcClient.handleServerRequest(request);
         });
-        rpcClient.handleServerRequest(request);
     }
     
     @Test
-    public void testNotifyDisConnectedForEmpty() {
+    void testNotifyDisConnectedForEmpty() {
         rpcClient.notifyDisConnected(null);
         verify(rpcClientConfig, never()).name();
     }
     
     @Test
-    public void testNotifyDisConnected() {
+    void testNotifyDisConnected() {
         ConnectionEventListener listener = mock(ConnectionEventListener.class);
         rpcClient.registerConnectionListener(listener);
         rpcClient.notifyDisConnected(null);
@@ -728,7 +782,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNotifyDisConnectedException() {
+    void testNotifyDisConnectedException() {
         ConnectionEventListener listener = mock(ConnectionEventListener.class);
         rpcClient.registerConnectionListener(listener);
         doThrow(new RuntimeException("test")).when(listener).onDisConnect(null);
@@ -737,13 +791,13 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNotifyConnectedForEmpty() {
+    void testNotifyConnectedForEmpty() {
         rpcClient.notifyConnected(null);
         verify(rpcClientConfig, never()).name();
     }
     
     @Test
-    public void testNotifyConnected() {
+    void testNotifyConnected() {
         ConnectionEventListener listener = mock(ConnectionEventListener.class);
         rpcClient.registerConnectionListener(listener);
         rpcClient.notifyConnected(null);
@@ -752,7 +806,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testNotifyConnectedException() {
+    void testNotifyConnectedException() {
         ConnectionEventListener listener = mock(ConnectionEventListener.class);
         rpcClient.registerConnectionListener(listener);
         doThrow(new RuntimeException("test")).when(listener).onConnected(null);
@@ -761,22 +815,23 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testStartClient() throws NacosException {
+    void testStartClient() throws NacosException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
-        RpcClient rpcClient = buildTestStartClient(new Function<RpcClient.ServerInfo, Connection>() {
-            
-            private int count;
-            
-            @Override
-            public Connection apply(RpcClient.ServerInfo serverInfo) {
-                if (count == 0) {
-                    count++;
-                    throw new RuntimeException("test");
+        RpcClient rpcClient =
+            buildTestStartClient(new Function<RpcClient.ServerInfo, Connection>() {
+                
+                private int count;
+                
+                @Override
+                public Connection apply(RpcClient.ServerInfo serverInfo) {
+                    if (count == 0) {
+                        count++;
+                        throw new RuntimeException("test");
+                    }
+                    return connection;
                 }
-                return connection;
-            }
-        });
+            });
         try {
             rpcClient.start();
             assertTrue(rpcClient.isRunning());
@@ -786,7 +841,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testStartClientWithFailed() throws NacosException, InterruptedException {
+    void testStartClientWithFailed() throws NacosException, InterruptedException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         try {
             rpcClient.start();
@@ -798,7 +853,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testStartClientAfterShutdown() throws NacosException {
+    void testStartClientAfterShutdown() throws NacosException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         rpcClient.shutdown();
         rpcClient.start();
@@ -806,7 +861,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testDisConnectionEventAfterStart() throws NacosException, InterruptedException {
+    void testDisConnectionEventAfterStart() throws NacosException, InterruptedException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> connection);
@@ -824,7 +879,8 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithNullConnection() throws NacosException, InterruptedException {
+    void testReconnectContextAfterStartWithNullConnection()
+        throws NacosException, InterruptedException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         try {
             when(rpcClientConfig.connectionKeepAlive()).thenReturn(-1L);
@@ -837,23 +893,24 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithConnectionHealthCheckFail()
-            throws NacosException, InterruptedException {
+    void testReconnectContextAfterStartWithConnectionHealthCheckFail()
+        throws NacosException, InterruptedException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
-        RpcClient rpcClient = buildTestStartClient(new Function<RpcClient.ServerInfo, Connection>() {
-            
-            private int count;
-            
-            @Override
-            public Connection apply(RpcClient.ServerInfo serverInfo) {
-                if (count == 0) {
-                    count++;
-                    return connection;
+        RpcClient rpcClient =
+            buildTestStartClient(new Function<RpcClient.ServerInfo, Connection>() {
+                
+                private int count;
+                
+                @Override
+                public Connection apply(RpcClient.ServerInfo serverInfo) {
+                    if (count == 0) {
+                        count++;
+                        return connection;
+                    }
+                    return null;
                 }
-                return null;
-            }
-        });
+            });
         try {
             when(rpcClientConfig.connectionKeepAlive()).thenReturn(10L);
             rpcClient.start();
@@ -865,14 +922,16 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithConnectionHealthCheckSuccess()
-            throws NacosException, InterruptedException, NoSuchFieldException, IllegalAccessException {
+    void testReconnectContextAfterStartWithConnectionHealthCheckSuccess()
+        throws NacosException, InterruptedException, NoSuchFieldException, IllegalAccessException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> connection);
-        when(connection.request(any(Request.class), anyLong())).thenReturn(new HealthCheckResponse());
+        when(connection.request(any(Request.class), anyLong()))
+            .thenReturn(new HealthCheckResponse());
         try {
-            Field lastActiveTimeStampField = RpcClient.class.getDeclaredField("lastActiveTimeStamp");
+            Field lastActiveTimeStampField =
+                RpcClient.class.getDeclaredField("lastActiveTimeStamp");
             lastActiveTimeStampField.setAccessible(true);
             final long lastActiveTimeStamp = (long) lastActiveTimeStampField.get(rpcClient);
             when(rpcClientConfig.connectionKeepAlive()).thenReturn(10L);
@@ -887,13 +946,14 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithActiveTimeIsNew()
-            throws NacosException, InterruptedException, NoSuchFieldException, IllegalAccessException {
+    void testReconnectContextAfterStartWithActiveTimeIsNew()
+        throws NacosException, InterruptedException, NoSuchFieldException, IllegalAccessException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> connection);
         try {
-            Field lastActiveTimeStampField = RpcClient.class.getDeclaredField("lastActiveTimeStamp");
+            Field lastActiveTimeStampField =
+                RpcClient.class.getDeclaredField("lastActiveTimeStamp");
             lastActiveTimeStampField.setAccessible(true);
             long setTime = System.currentTimeMillis() + 10000;
             lastActiveTimeStampField.set(rpcClient, setTime);
@@ -909,17 +969,20 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithOldServiceInfo()
-            throws NacosException, InterruptedException, IllegalAccessException {
+    void testReconnectContextAfterStartWithOldServiceInfo()
+        throws NacosException, InterruptedException, IllegalAccessException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
-        when(serverListFactory.getServerList()).thenReturn(Collections.singletonList("127.0.0.1:8848"));
+        when(serverListFactory.getServerList())
+            .thenReturn(Collections.singletonList("127.0.0.1:8848"));
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> connection);
         try {
             rpcClient.start();
-            RpcClient.ReconnectContext reconnectContext = new RpcClient.ReconnectContext(
-                    new RpcClient.ServerInfo("127.0.0.1", 0), false);
-            ((BlockingQueue<RpcClient.ReconnectContext>) reconnectionSignalField.get(rpcClient)).put(reconnectContext);
+            RpcClient.ReconnectContext reconnectContext =
+                new RpcClient.ReconnectContext(new RpcClient.ServerInfo("127.0.0.1", 0),
+                    false);
+            ((BlockingQueue<RpcClient.ReconnectContext>) reconnectionSignalField.get(rpcClient))
+                .put(reconnectContext);
             TimeUnit.MILLISECONDS.sleep(100);
             assertEquals(RpcClientStatus.RUNNING, rpcClient.rpcClientStatus.get());
             assertEquals(8848, reconnectContext.serverInfo.serverPort);
@@ -929,17 +992,20 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectContextAfterStartWithNewServiceInfo()
-            throws NacosException, InterruptedException, IllegalAccessException {
+    void testReconnectContextAfterStartWithNewServiceInfo()
+        throws NacosException, InterruptedException, IllegalAccessException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
-        when(serverListFactory.getServerList()).thenReturn(Collections.singletonList("1.1.1.1:8848"));
+        when(serverListFactory.getServerList())
+            .thenReturn(Collections.singletonList("1.1.1.1:8848"));
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> connection);
         try {
             rpcClient.start();
-            RpcClient.ReconnectContext reconnectContext = new RpcClient.ReconnectContext(
-                    new RpcClient.ServerInfo("127.0.0.1", 0), false);
-            ((BlockingQueue<RpcClient.ReconnectContext>) reconnectionSignalField.get(rpcClient)).put(reconnectContext);
+            RpcClient.ReconnectContext reconnectContext =
+                new RpcClient.ReconnectContext(new RpcClient.ServerInfo("127.0.0.1", 0),
+                    false);
+            ((BlockingQueue<RpcClient.ReconnectContext>) reconnectionSignalField.get(rpcClient))
+                .put(reconnectContext);
             TimeUnit.MILLISECONDS.sleep(100);
             assertEquals(RpcClientStatus.RUNNING, rpcClient.rpcClientStatus.get());
             assertNull(reconnectContext.serverInfo);
@@ -949,7 +1015,8 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHandleConnectionResetRequestWithoutServer() throws NacosException, InterruptedException {
+    void testHandleConnectionResetRequestWithoutServer()
+        throws NacosException, InterruptedException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848", "1.1.1.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> {
@@ -968,7 +1035,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHandleConnectionResetRequestWithServer() throws NacosException, InterruptedException {
+    void testHandleConnectionResetRequestWithServer() throws NacosException, InterruptedException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848", "1.1.1.1:8848");
         List<String> serverList = new LinkedList<>();
         serverList.add("127.0.0.1:8848");
@@ -995,7 +1062,8 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHandleConnectionResetRequestWithException() throws NacosException, InterruptedException {
+    void testHandleConnectionResetRequestWithException()
+        throws NacosException, InterruptedException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848", "1.1.1.1:8848");
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> {
@@ -1017,7 +1085,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHandleClientDetectionRequest() throws NacosException {
+    void testHandleClientDetectionRequest() throws NacosException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         try {
             rpcClient.start();
@@ -1029,7 +1097,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testHandleOtherRequest() throws NacosException {
+    void testHandleOtherRequest() throws NacosException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         try {
             rpcClient.start();
@@ -1041,19 +1109,21 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testReconnectForRequestFailButHealthCheckOK() throws NacosException {
+    void testReconnectForRequestFailButHealthCheckOK() throws NacosException {
         RpcClient rpcClient = buildTestStartClient(serverInfo -> null);
         rpcClient.currentConnection = connection;
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
-        when(connection.request(any(Request.class), anyLong())).thenReturn(new HealthCheckResponse());
+        when(connection.request(any(Request.class), anyLong()))
+            .thenReturn(new HealthCheckResponse());
         rpcClient.reconnect(null, true);
         assertTrue(rpcClient.isRunning());
     }
     
     @Test
-    public void testReconnectFailTimes() throws NacosException {
+    void testReconnectFailTimes() throws NacosException {
         when(serverListFactory.genNextServer()).thenReturn("127.0.0.1:8848");
-        when(serverListFactory.getServerList()).thenReturn(Collections.singletonList("127.0.0.1:8848"));
+        when(serverListFactory.getServerList())
+            .thenReturn(Collections.singletonList("127.0.0.1:8848"));
         final AtomicInteger count = new AtomicInteger(0);
         RpcClient rpcClient = buildTestStartClient(serverInfo -> {
             int actual = count.incrementAndGet();
@@ -1068,22 +1138,12 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testGetCurrentServer() {
+    void testGetCurrentServer() {
         assertNull(rpcClient.getCurrentServer());
         rpcClient.currentConnection = connection;
         rpcClient.serverListFactory(serverListFactory);
         connection.serverInfo = new RpcClient.ServerInfo("127.0.0.1", 8848);
         assertNotNull(rpcClient.getCurrentServer());
-    }
-    
-    @Test
-    public void testCurrentRpcServer() throws IllegalAccessException {
-        when(serverListFactory.getCurrentServer()).thenReturn("127.0.0.1:8848");
-        serverListFactoryField.set(rpcClient, serverListFactory);
-        RpcClient.ServerInfo serverInfo = rpcClient.currentRpcServer();
-        assertEquals("127.0.0.1", serverInfo.getServerIp());
-        assertEquals(8848, serverInfo.getServerPort());
-        assertEquals("127.0.0.1:8848", serverInfo.getAddress());
     }
     
     private RpcClient buildTestStartClient(Function<RpcClient.ServerInfo, Connection> function) {
@@ -1107,7 +1167,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testServerInfoSet() {
+    void testServerInfoSet() {
         RpcClient.ServerInfo serverInfo = new RpcClient.ServerInfo();
         String ip = "127.0.0.1";
         int port = 80;
@@ -1121,7 +1181,7 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testSetTenant() {
+    void testSetTenant() {
         String tenant = "testTenant";
         assertNull(rpcClient.getTenant());
         rpcClient.setTenant(tenant);
@@ -1129,16 +1189,17 @@ public class RpcClientTest {
     }
     
     @Test
-    public void testGetConnectionAbilityWithNullConnection() {
-        AbilityStatus abilityStatus = rpcClient.getConnectionAbility(AbilityKey.SERVER_TEST_1);
+    void testGetConnectionAbilityWithNullConnection() {
+        AbilityStatus abilityStatus = rpcClient.getConnectionAbility(AbilityKey.SERVER_FUZZY_WATCH);
         assertNull(abilityStatus);
     }
     
     @Test
-    public void testGetConnectionAbilityWithReadyConnection() {
-        when(connection.getConnectionAbility(AbilityKey.SERVER_TEST_1)).thenReturn(AbilityStatus.SUPPORTED);
+    void testGetConnectionAbilityWithReadyConnection() {
+        when(connection.getConnectionAbility(AbilityKey.SERVER_FUZZY_WATCH))
+            .thenReturn(AbilityStatus.SUPPORTED);
         rpcClient.currentConnection = connection;
-        AbilityStatus abilityStatus = rpcClient.getConnectionAbility(AbilityKey.SERVER_TEST_1);
+        AbilityStatus abilityStatus = rpcClient.getConnectionAbility(AbilityKey.SERVER_FUZZY_WATCH);
         assertNotNull(abilityStatus);
         assertEquals(AbilityStatus.SUPPORTED, abilityStatus);
     }

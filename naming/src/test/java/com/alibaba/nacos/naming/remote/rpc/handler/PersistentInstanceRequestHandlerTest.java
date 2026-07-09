@@ -23,30 +23,39 @@ import com.alibaba.nacos.api.naming.remote.NamingRemoteConstants;
 import com.alibaba.nacos.api.naming.remote.request.PersistentInstanceRequest;
 import com.alibaba.nacos.api.remote.request.RequestMeta;
 import com.alibaba.nacos.naming.core.v2.service.impl.PersistentClientOperationServiceImpl;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import com.alibaba.nacos.sys.env.EnvUtil;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.env.MockEnvironment;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * {@link PersistentInstanceRequestHandler} unit tests.
  *
  * @author blake.qiu
  */
-@RunWith(MockitoJUnitRunner.class)
-public class PersistentInstanceRequestHandlerTest {
-
+@ExtendWith(MockitoExtension.class)
+class PersistentInstanceRequestHandlerTest {
+    
     @InjectMocks
     private PersistentInstanceRequestHandler persistentInstanceRequestHandler;
-
+    
     @Mock
     private PersistentClientOperationServiceImpl clientOperationService;
-
+    
+    @BeforeEach
+    void setUp() {
+        EnvUtil.setEnvironment(new MockEnvironment());
+    }
+    
     @Test
-    public void testHandle() throws NacosException {
+    void testHandle() throws NacosException {
         PersistentInstanceRequest instanceRequest = new PersistentInstanceRequest();
         instanceRequest.setType(NamingRemoteConstants.REGISTER_INSTANCE);
         instanceRequest.setServiceName("service1");
@@ -55,17 +64,19 @@ public class PersistentInstanceRequestHandlerTest {
         instanceRequest.setInstance(instance);
         RequestMeta requestMeta = new RequestMeta();
         persistentInstanceRequestHandler.handle(instanceRequest, requestMeta);
-        Mockito.verify(clientOperationService).registerInstance(Mockito.any(), Mockito.any(), Mockito.anyString());
-
+        Mockito.verify(clientOperationService).registerInstance(Mockito.any(), Mockito.any(),
+            Mockito.anyString());
+        
         instanceRequest.setType(NamingRemoteConstants.DE_REGISTER_INSTANCE);
         persistentInstanceRequestHandler.handle(instanceRequest, requestMeta);
-        Mockito.verify(clientOperationService).deregisterInstance(Mockito.any(), Mockito.any(), Mockito.anyString());
-
+        Mockito.verify(clientOperationService).deregisterInstance(Mockito.any(), Mockito.any(),
+            Mockito.anyString());
+        
         instanceRequest.setType("xxx");
         try {
             persistentInstanceRequestHandler.handle(instanceRequest, requestMeta);
         } catch (Exception e) {
-            Assert.assertEquals(((NacosException) e).getErrCode(), NacosException.INVALID_PARAM);
+            assertEquals(NacosException.INVALID_PARAM, ((NacosException) e).getErrCode());
         }
     }
 }

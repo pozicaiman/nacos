@@ -17,6 +17,7 @@
 package com.alibaba.nacos.config.server.model;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * ConfigInfoChanged.
@@ -40,7 +41,7 @@ public class ConfigInfoChanged implements Serializable {
     }
     
     public ConfigInfoChanged() {
-    
+        
     }
     
     public String getDataId() {
@@ -86,6 +87,11 @@ public class ConfigInfoChanged implements Serializable {
             return false;
         }
         return true;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Objects.hash(dataId, group);
     }
     
     @Override

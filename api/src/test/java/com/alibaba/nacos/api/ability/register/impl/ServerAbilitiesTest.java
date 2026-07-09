@@ -17,20 +17,26 @@
 package com.alibaba.nacos.api.ability.register.impl;
 
 import com.alibaba.nacos.api.ability.constant.AbilityKey;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ServerAbilitiesTest {
+class ServerAbilitiesTest {
     
     @Test
-    public void testGetStaticAbilities() {
+    void testGetStaticAbilities() {
         assertFalse(ServerAbilities.getStaticAbilities().isEmpty());
     }
-
+    
     @Test
-    public void testSupportPersistentInstanceByGrpcAbilities() {
-        assertTrue(ServerAbilities.getStaticAbilities().get(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC));
+    void testSupportPersistentInstanceByGrpcAbilities() {
+        assertTrue(ServerAbilities.getStaticAbilities()
+            .get(AbilityKey.SERVER_PERSISTENT_INSTANCE_BY_GRPC));
+    }
+    
+    @Test
+    void testSupportAgentCardV1Abilities() {
+        assertTrue(ServerAbilities.getStaticAbilities().get(AbilityKey.SERVER_AGENT_CARD_V1));
     }
 }

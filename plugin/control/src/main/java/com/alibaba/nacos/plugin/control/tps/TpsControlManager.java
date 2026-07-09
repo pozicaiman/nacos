@@ -35,7 +35,6 @@ import java.util.Map;
  *
  * @author shiyiyue
  */
-@SuppressWarnings("PMD.AbstractClassShouldStartWithAbstractNamingRule")
 public abstract class TpsControlManager {
     
     private final TpsControlRuleParser tpsControlRuleParser;
@@ -69,12 +68,14 @@ public abstract class TpsControlManager {
         
         String localRuleContent = ruleStorageProxy.getLocalDiskStorage().getTpsRule(pointName);
         if (StringUtils.isNotBlank(localRuleContent)) {
-            Loggers.CONTROL.info("Found local disk tps control rule of {},content ={}", pointName, localRuleContent);
+            Loggers.CONTROL.info("Found local disk tps control rule of {},content ={}", pointName,
+                localRuleContent);
         } else if (ruleStorageProxy.getExternalStorage() != null
-                && ruleStorageProxy.getExternalStorage().getTpsRule(pointName) != null) {
+            && ruleStorageProxy.getExternalStorage().getTpsRule(pointName) != null) {
             localRuleContent = ruleStorageProxy.getExternalStorage().getTpsRule(pointName);
             if (StringUtils.isNotBlank(localRuleContent)) {
-                Loggers.CONTROL.info("Found external  tps control rule of {},content ={}", pointName, localRuleContent);
+                Loggers.CONTROL.info("Found external  tps control rule of {},content ={}",
+                    pointName, localRuleContent);
             }
         }
         
@@ -82,7 +83,8 @@ public abstract class TpsControlManager {
             TpsControlRule tpsLimitRule = tpsControlRuleParser.parseRule(localRuleContent);
             this.applyTpsRule(pointName, tpsLimitRule);
         } else {
-            Loggers.CONTROL.info("No tps control rule of {} found,content ={}  ", pointName, localRuleContent);
+            Loggers.CONTROL.info("No tps control rule of {} found,content ={}  ", pointName,
+                localRuleContent);
         }
     }
     

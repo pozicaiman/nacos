@@ -16,13 +16,20 @@
 
 package com.alibaba.nacos.prometheus.filter;
 
+import com.alibaba.nacos.core.web.NacosWebBean;
 import com.alibaba.nacos.plugin.auth.constant.Constants;
+import com.alibaba.nacos.prometheus.controller.PrometheusController;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.access.ExceptionTranslationFilter;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
@@ -36,14 +43,28 @@ import static com.alibaba.nacos.prometheus.api.ApiConstants.PROMETHEUS_CONTROLLE
  *
  * @author vividfish
  */
+@NacosWebBean
 @Configuration
 @ConditionalOnProperty(value = Constants.Auth.NACOS_CORE_AUTH_ENABLED, havingValue = "true")
+@ConditionalOnBean(PrometheusController.class)
 public class PrometheusAuthFilter {
     
     @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http,
+        UserDetailsService userDetailsService,
+        PasswordEncoder passwordEncoder) throws Exception {
+        AuthenticationManagerBuilder authenticationManagerBuilder = http.getSharedObject(
+            AuthenticationManagerBuilder.class);
+        authenticationManagerBuilder.userDetailsService(userDetailsService)
+            .passwordEncoder(passwordEncoder);
+        return authenticationManagerBuilder.getOrBuild();
+    }
+    
+    @Bean
     public FilterRegistrationBean<BasicAuthenticationFilter> basicAuthenticationFilter(
-            AuthenticationManager authenticationManager) {
-        FilterRegistrationBean<BasicAuthenticationFilter> registration = new FilterRegistrationBean<>();
+        AuthenticationManager authenticationManager) {
+        FilterRegistrationBean<BasicAuthenticationFilter> registration =
+            new FilterRegistrationBean<>();
         registration.setFilter(new BasicAuthenticationFilter(authenticationManager));
         registration.addUrlPatterns(PROMETHEUS_CONTROLLER_PATH);
         registration.setName("prometheusBasicAuthenticationFilter");
@@ -53,7 +74,8 @@ public class PrometheusAuthFilter {
     
     @Bean
     public FilterRegistrationBean<AnonymousAuthenticationFilter> anonymousAuthenticationFilter() {
-        FilterRegistrationBean<AnonymousAuthenticationFilter> registration = new FilterRegistrationBean<>();
+        FilterRegistrationBean<AnonymousAuthenticationFilter> registration =
+            new FilterRegistrationBean<>();
         registration.setFilter(new AnonymousAuthenticationFilter("annony"));
         registration.addUrlPatterns(PROMETHEUS_CONTROLLER_PATH);
         registration.setName("prometheusAnonymousAuthenticationFilter");
@@ -73,7 +95,8 @@ public class PrometheusAuthFilter {
     
     @Bean
     public FilterRegistrationBean<ExceptionTranslationFilter> exceptionTranslationFilter() {
-        FilterRegistrationBean<ExceptionTranslationFilter> registration = new FilterRegistrationBean<>();
+        FilterRegistrationBean<ExceptionTranslationFilter> registration =
+            new FilterRegistrationBean<>();
         registration.setFilter(new ExceptionTranslationFilter(new Http403ForbiddenEntryPoint()));
         registration.addUrlPatterns(PROMETHEUS_CONTROLLER_PATH);
         registration.setName("prometheusExceptionTranslationFilter");

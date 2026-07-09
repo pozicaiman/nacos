@@ -16,85 +16,68 @@
 
 package com.alibaba.nacos.common.http.client.response;
 
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.apache.hc.client5.http.async.methods.SimpleBody;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.core5.http.Header;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
-public class DefaultClientHttpResponseTest {
+@ExtendWith(MockitoExtension.class)
+// todo remove this
+@MockitoSettings(strictness = Strictness.LENIENT)
+class DefaultClientHttpResponseTest {
+    
+    DefaultClientHttpResponse clientHttpResponse;
     
     @Mock
-    private HttpResponse response;
+    private SimpleHttpResponse response;
     
     @Mock
-    private StatusLine statusLine;
-    
-    @Mock
-    private HttpEntity httpEntity;
-    
-    @Mock
-    private InputStream inputStream;
+    private SimpleBody simpleBody;
     
     @Mock
     private Header header;
     
-    DefaultClientHttpResponse clientHttpResponse;
-    
-    @Before
-    public void setUp() throws Exception {
-        when(httpEntity.getContent()).thenReturn(inputStream);
-        when(response.getEntity()).thenReturn(httpEntity);
-        when(response.getStatusLine()).thenReturn(statusLine);
-        when(response.getAllHeaders()).thenReturn(new Header[] {header});
+    @BeforeEach
+    void setUp() throws Exception {
+        when(response.getBody()).thenReturn(simpleBody);
+        when(response.getHeaders()).thenReturn(new Header[] {header});
         when(header.getName()).thenReturn("testName");
         when(header.getValue()).thenReturn("testValue");
         clientHttpResponse = new DefaultClientHttpResponse(response);
     }
     
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         clientHttpResponse.close();
     }
     
     @Test
-    public void testGetStatusCode() {
-        when(statusLine.getStatusCode()).thenReturn(200);
-        assertEquals(200, clientHttpResponse.getStatusCode());
+    void testGetStatusCode() {
+        assertEquals(0, clientHttpResponse.getStatusCode());
     }
     
     @Test
-    public void testGetStatusText() {
-        when(statusLine.getReasonPhrase()).thenReturn("test");
-        assertEquals("test", clientHttpResponse.getStatusText());
-    }
-    
-    @Test
-    public void testGetHeaders() {
+    void testGetHeaders() {
         assertEquals(3, clientHttpResponse.getHeaders().getHeader().size());
         assertEquals("testValue", clientHttpResponse.getHeaders().getValue("testName"));
     }
     
     @Test
-    public void testGetBody() throws IOException {
-        assertEquals(inputStream, clientHttpResponse.getBody());
-    }
-    
-    @Test
-    public void testCloseResponseWithException() {
-        when(response.getEntity()).thenThrow(new RuntimeException("test"));
-        clientHttpResponse.close();
+    void testGetBody() throws IOException {
+        assertTrue(clientHttpResponse.getBody() instanceof ByteArrayInputStream);
     }
 }

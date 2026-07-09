@@ -19,40 +19,65 @@ package com.alibaba.nacos.plugin.control.impl;
 import com.alibaba.nacos.plugin.control.connection.request.ConnectionCheckRequest;
 import com.alibaba.nacos.plugin.control.connection.response.ConnectionCheckResponse;
 import com.alibaba.nacos.plugin.control.connection.rule.ConnectionControlRule;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-public class NacosConnectionControlManagerTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class NacosConnectionControlManagerTest {
     
     @Test
-    public void testApplyConnectionLimitRule() {
-        NacosConnectionControlManager nacosConnectionControlManager = new NacosConnectionControlManager();
+    void testApplyConnectionLimitRule() {
+        NacosConnectionControlManager nacosConnectionControlManager =
+            new NacosConnectionControlManager();
         ConnectionControlRule connectionControlRule = new ConnectionControlRule();
         connectionControlRule.setCountLimit(10);
         nacosConnectionControlManager.applyConnectionLimitRule(connectionControlRule);
-        ConnectionControlRule connectionLimitRule = nacosConnectionControlManager.getConnectionLimitRule();
-        Assert.assertEquals(connectionControlRule, connectionLimitRule);
+        ConnectionControlRule connectionLimitRule =
+            nacosConnectionControlManager.getConnectionLimitRule();
+        assertEquals(connectionControlRule, connectionLimitRule);
     }
     
     @Test
-    public void testCheckLimit() {
-        NacosConnectionControlManager nacosConnectionControlManager = new NacosConnectionControlManager();
+    void testCheckLimit() {
+        NacosConnectionControlManager nacosConnectionControlManager =
+            new NacosConnectionControlManager();
         ConnectionControlRule connectionControlRule = new ConnectionControlRule();
         connectionControlRule.setCountLimit(10);
         nacosConnectionControlManager.applyConnectionLimitRule(connectionControlRule);
-        ConnectionCheckRequest connectionCheckRequest = new ConnectionCheckRequest("127.0.0.1", "test", "test");
-        ConnectionCheckResponse connectionCheckResponse = nacosConnectionControlManager.check(connectionCheckRequest);
-        Assert.assertFalse(connectionCheckResponse.isSuccess());
+        ConnectionCheckRequest connectionCheckRequest =
+            new ConnectionCheckRequest("127.0.0.1", "test", "test");
+        ConnectionCheckResponse connectionCheckResponse =
+            nacosConnectionControlManager.check(connectionCheckRequest);
+        assertFalse(connectionCheckResponse.isSuccess());
     }
     
     @Test
-    public void testCheckUnLimit() {
-        NacosConnectionControlManager nacosConnectionControlManager = new NacosConnectionControlManager();
+    void testCheckUnLimit() {
+        NacosConnectionControlManager nacosConnectionControlManager =
+            new NacosConnectionControlManager();
         ConnectionControlRule connectionControlRule = new ConnectionControlRule();
         connectionControlRule.setCountLimit(30);
         nacosConnectionControlManager.applyConnectionLimitRule(connectionControlRule);
-        ConnectionCheckRequest connectionCheckRequest = new ConnectionCheckRequest("127.0.0.1", "test", "test");
-        ConnectionCheckResponse connectionCheckResponse = nacosConnectionControlManager.check(connectionCheckRequest);
-        Assert.assertTrue(connectionCheckResponse.isSuccess());
+        ConnectionCheckRequest connectionCheckRequest =
+            new ConnectionCheckRequest("127.0.0.1", "test", "test");
+        ConnectionCheckResponse connectionCheckResponse =
+            nacosConnectionControlManager.check(connectionCheckRequest);
+        assertTrue(connectionCheckResponse.isSuccess());
+    }
+    
+    @Test
+    void testCheckLimitCountLessThanZero() {
+        NacosConnectionControlManager nacosConnectionControlManager =
+            new NacosConnectionControlManager();
+        ConnectionControlRule connectionControlRule = new ConnectionControlRule();
+        connectionControlRule.setCountLimit(-1);
+        nacosConnectionControlManager.applyConnectionLimitRule(connectionControlRule);
+        ConnectionCheckRequest connectionCheckRequest =
+            new ConnectionCheckRequest("127.0.0.1", "test", "test");
+        ConnectionCheckResponse connectionCheckResponse =
+            nacosConnectionControlManager.check(connectionCheckRequest);
+        assertTrue(connectionCheckResponse.isSuccess());
     }
 }

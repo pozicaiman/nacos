@@ -16,8 +16,14 @@
 
 package com.alibaba.nacos.plugin.auth.impl.utils;
 
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+
+import java.util.Base64;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Base64Decoder test.
@@ -25,22 +31,55 @@ import org.junit.Test;
  * @author xYohn
  * @date 2023/8/8
  */
-public class Base64DecodeTest {
+class Base64DecodeTest {
     
     @Test
-    public void testStandardDecode() {
+    void testStandardDecode() {
         String origin = "aGVsbG8sbmFjb3MhdGVzdEJhc2U2NGVuY29kZQ==";
         String expectDecodeOrigin = "hello,nacos!testBase64encode";
         byte[] decodeOrigin = Base64Decode.decode(origin);
-        Assert.assertArrayEquals(decodeOrigin, expectDecodeOrigin.getBytes());
+        assertArrayEquals(decodeOrigin, expectDecodeOrigin.getBytes());
     }
     
     @Test
-    public void testNotStandardDecode() {
-        String notStandardOrigin = "SecretKey012345678901234567890123456789012345678901234567890123456789";
+    void testNotStandardDecode() {
+        String notStandardOrigin =
+            "SecretKey012345678901234567890123456789012345678901234567890123456789";
         byte[] decodeNotStandardOrigin = Base64Decode.decode(notStandardOrigin);
-        String truncationOrigin = "SecretKey01234567890123456789012345678901234567890123456789012345678";
+        String truncationOrigin =
+            "SecretKey01234567890123456789012345678901234567890123456789012345678";
         byte[] decodeTruncationOrigin = Base64Decode.decode(truncationOrigin);
-        Assert.assertArrayEquals(decodeNotStandardOrigin, decodeTruncationOrigin);
+        assertArrayEquals(decodeNotStandardOrigin, decodeTruncationOrigin);
+    }
+    
+    @Test
+    void testDecodeEmptyAndTrimmedInput() {
+        assertEquals(0, Base64Decode.decode(null).length);
+        assertEquals(0, Base64Decode.decode("").length);
+        assertArrayEquals("hello".getBytes(), Base64Decode.decode("$aGVsbG8=$"));
+    }
+    
+    @Test
+    void testDecodeMimeInputWithLineSeparators() {
+        byte[] expected = new byte[120];
+        for (int i = 0; i < expected.length; i++) {
+            expected[i] = (byte) i;
+        }
+        String encoded =
+            Base64.getMimeEncoder(76, new byte[] {'\r', '\n'}).encodeToString(expected);
+        
+        assertArrayEquals(expected, Base64Decode.decode(encoded));
+    }
+    
+    @Test
+    void testDecodeRejectsIllegalCharacters() {
+        assertThrows(IllegalArgumentException.class, () -> Base64Decode.decode("AA$A"));
+        assertThrows(IllegalArgumentException.class,
+            () -> Base64Decode.decode("AA" + (char) 256 + "A"));
+    }
+    
+    @Test
+    void testConstructor() {
+        assertNotNull(new Base64Decode());
     }
 }

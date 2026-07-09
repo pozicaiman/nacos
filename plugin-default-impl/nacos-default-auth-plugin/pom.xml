@@ -35,6 +35,10 @@
         </dependency>
         <dependency>
             <groupId>com.alibaba.nacos</groupId>
+            <artifactId>nacos-visibility-plugin</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.nacos</groupId>
             <artifactId>nacos-common</artifactId>
         </dependency>
         
@@ -43,16 +47,16 @@
             <artifactId>nacos-sys</artifactId>
             <scope>provided</scope>
         </dependency>
-        
         <dependency>
             <groupId>com.alibaba.nacos</groupId>
-            <artifactId>nacos-config</artifactId>
+            <artifactId>nacos-core</artifactId>
             <scope>provided</scope>
         </dependency>
         
         <dependency>
-            <groupId>org.springframework.ldap</groupId>
-            <artifactId>spring-ldap-core</artifactId>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

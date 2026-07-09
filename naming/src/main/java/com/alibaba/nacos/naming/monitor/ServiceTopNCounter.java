@@ -25,7 +25,6 @@ import com.alibaba.nacos.naming.misc.UtilsAndCommons;
  *
  * @author xiweng.yy
  */
-@SuppressWarnings("PMD.ClassNamingShouldBeCamelRule")
 public class ServiceTopNCounter extends BaseTopNCounter<Service> {
     
     public ServiceTopNCounter() {
@@ -34,6 +33,7 @@ public class ServiceTopNCounter extends BaseTopNCounter<Service> {
     
     @Override
     protected String keyToString(Service service) {
-        return service.getNamespace() + UtilsAndCommons.NAMESPACE_SERVICE_CONNECTOR + service.getGroupedServiceName();
+        return service.getNamespace() + UtilsAndCommons.NAMESPACE_SERVICE_CONNECTOR
+            + service.getGroupedServiceName();
     }
 }

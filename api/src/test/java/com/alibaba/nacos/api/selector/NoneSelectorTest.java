@@ -16,39 +16,53 @@
 
 package com.alibaba.nacos.api.selector;
 
+import com.alibaba.nacos.api.exception.NacosException;
+import com.alibaba.nacos.api.naming.pojo.Instance;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.NamedType;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import java.util.ArrayList;
+import java.util.List;
 
-public class NoneSelectorTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class NoneSelectorTest {
     
     ObjectMapper mapper = new ObjectMapper();
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
         mapper.registerSubtypes(new NamedType(NoneSelector.class, SelectorType.none.name()));
     }
     
     @Test
-    public void testSerialization() throws JsonProcessingException {
+    void testSerialization() throws JsonProcessingException {
         NoneSelector selector = new NoneSelector();
         String actual = mapper.writeValueAsString(selector);
         assertTrue(actual.contains("\"type\":\"" + SelectorType.none.name() + "\""));
     }
     
     @Test
-    public void testDeserialization() throws JsonProcessingException {
+    void testDeserialization() throws JsonProcessingException {
         String json = "{\"type\":\"none\"}";
         AbstractSelector actual = mapper.readValue(json, AbstractSelector.class);
         assertEquals(SelectorType.none.name(), actual.getType());
+    }
+    
+    @Test
+    void testCommandMethod() throws NacosException {
+        NoneSelector selector = new NoneSelector();
+        assertNull(selector.parse(""));
+        List<Instance> instances = new ArrayList<>();
+        assertEquals(instances, selector.select(instances));
     }
 }

@@ -16,22 +16,22 @@
 
 package com.alibaba.nacos.api.utils;
 
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.util.Properties;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class NetUtilsTest {
+class NetUtilsTest {
     
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         Class<?> clazz = Class.forName("com.alibaba.nacos.api.utils.NetUtils");
         Field field = clazz.getDeclaredField("localIp");
         field.setAccessible(true);
@@ -42,40 +42,41 @@ public class NetUtilsTest {
     }
     
     @Test
-    public void testLocalIpWithSpecifiedIp() {
+    void testLocalIpWithSpecifiedIp() {
         System.setProperty("com.alibaba.nacos.client.local.ip", "10.2.8.8");
-        assertEquals("10.2.8.8", NetUtils.localIP());
+        assertEquals("10.2.8.8", NetUtils.localIp());
         System.setProperty("com.alibaba.nacos.client.local.ip", "10.2.8.9");
-        assertEquals("10.2.8.8", NetUtils.localIP());
+        assertEquals("10.2.8.8", NetUtils.localIp());
     }
     
     @Test
-    public void testLocalIpWithPreferHostname() throws Exception {
+    void testLocalIpWithPreferHostname() throws Exception {
         InetAddress inetAddress = invokeGetInetAddress();
         String hostname = inetAddress.getHostName();
         System.setProperty("com.alibaba.nacos.client.local.preferHostname", "true");
-        assertEquals(hostname, NetUtils.localIP());
+        assertEquals(hostname, NetUtils.localIp());
     }
     
     @Test
-    public void testLocalIpWithoutPreferHostname() throws Exception {
+    void testLocalIpWithoutPreferHostname() throws Exception {
         InetAddress inetAddress = invokeGetInetAddress();
         String ip = inetAddress.getHostAddress();
-        assertEquals(ip, NetUtils.localIP());
+        assertEquals(ip, NetUtils.localIp());
     }
     
     @Test
-    public void testLocalIpWithException() throws Exception {
+    void testLocalIpWithException() throws Exception {
         Field field = System.class.getDeclaredField("props");
         field.setAccessible(true);
         Properties properties = (Properties) field.get(null);
         Properties mockProperties = mock(Properties.class);
-        when(mockProperties.getProperty("java.net.preferIPv6Addresses")).thenThrow(new RuntimeException("test"));
+        when(mockProperties.getProperty("java.net.preferIPv6Addresses"))
+            .thenThrow(new RuntimeException("test"));
         field.set(null, mockProperties);
         try {
             System.setProperty("java.net.preferIPv6Addresses", "aaa");
             InetAddress expect = InetAddress.getLocalHost();
-            assertEquals(expect.getHostAddress(), NetUtils.localIP());
+            assertEquals(expect.getHostAddress(), NetUtils.localIp());
         } finally {
             field.set(null, properties);
         }

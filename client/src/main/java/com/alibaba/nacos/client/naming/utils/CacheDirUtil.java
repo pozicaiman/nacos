@@ -49,21 +49,24 @@ public class CacheDirUtil {
      */
     public static String initCacheDir(String namespace, NacosClientProperties properties) {
         
-        String jmSnapshotPath = System.getProperty(JM_SNAPSHOT_PATH_PROPERTY);
+        String jmSnapshotPath = properties.getProperty(JM_SNAPSHOT_PATH_PROPERTY);
         
         String namingCacheRegistryDir = "";
         if (properties.getProperty(PropertyKeyConst.NAMING_CACHE_REGISTRY_DIR) != null) {
             namingCacheRegistryDir =
-                    File.separator + properties.getProperty(PropertyKeyConst.NAMING_CACHE_REGISTRY_DIR);
+                File.separator
+                    + properties.getProperty(PropertyKeyConst.NAMING_CACHE_REGISTRY_DIR);
         }
         
         if (!StringUtils.isBlank(jmSnapshotPath)) {
-            cacheDir = jmSnapshotPath + File.separator + FILE_PATH_NACOS + namingCacheRegistryDir + File.separator
-                    + FILE_PATH_NAMING + File.separator + namespace;
+            cacheDir = jmSnapshotPath + File.separator + FILE_PATH_NACOS + namingCacheRegistryDir
+                + File.separator
+                + FILE_PATH_NAMING + File.separator + namespace;
         } else {
             cacheDir =
-                    System.getProperty(USER_HOME_PROPERTY) + File.separator + FILE_PATH_NACOS + namingCacheRegistryDir
-                            + File.separator + FILE_PATH_NAMING + File.separator + namespace;
+                properties.getProperty(USER_HOME_PROPERTY) + File.separator + FILE_PATH_NACOS
+                    + namingCacheRegistryDir
+                    + File.separator + FILE_PATH_NAMING + File.separator + namespace;
         }
         
         return cacheDir;

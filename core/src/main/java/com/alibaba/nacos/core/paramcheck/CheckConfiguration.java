@@ -17,6 +17,7 @@
 package com.alibaba.nacos.core.paramcheck;
 
 import com.alibaba.nacos.core.code.ControllerMethodsCache;
+import com.alibaba.nacos.core.web.NacosWebBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,10 +29,12 @@ import org.springframework.context.annotation.Configuration;
  * @date 2023/11/7 17:52
  */
 @Configuration
+@NacosWebBean
 public class CheckConfiguration {
     
     @Bean
-    public FilterRegistrationBean<ParamCheckerFilter> checkerFilterRegistration(ParamCheckerFilter checkerFilter) {
+    public FilterRegistrationBean<ParamCheckerFilter> checkerFilterRegistration(
+        ParamCheckerFilter checkerFilter) {
         FilterRegistrationBean<ParamCheckerFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(checkerFilter);
         registration.addUrlPatterns("/*");

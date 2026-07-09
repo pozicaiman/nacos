@@ -20,16 +20,18 @@ import com.alibaba.nacos.api.ability.constant.AbilityKey;
 
 import java.util.Set;
 
-/**.
+/**
+ * .
+ *
  * @author Daydreamer
- * @description  Dynamically load ability from config. just for test
+ * @description Dynamically load ability from config. just for test
  * @date 2022/8/31 12:27
  **/
 public class TestAbilityConfig extends AbilityConfigs {
     
     public TestAbilityConfig() {
         Set<AbilityKey> serverAbilityKeys = super.getServerAbilityKeys();
-        serverAbilityKeys.add(AbilityKey.SERVER_TEST_1);
-        serverAbilityKeys.add(AbilityKey.SERVER_TEST_2);
+        serverAbilityKeys.add(AbilityKey.SERVER_FUZZY_WATCH);
+        serverAbilityKeys.add(AbilityKey.SERVER_DISTRIBUTED_LOCK);
     }
 }

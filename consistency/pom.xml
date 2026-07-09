@@ -25,7 +25,7 @@
             <extension>
                 <groupId>kr.motd.maven</groupId>
                 <artifactId>os-maven-plugin</artifactId>
-                <version>1.5.0.Final</version>
+                <version>1.7.1</version>
             </extension>
         </extensions>
         <plugins>
@@ -57,10 +57,6 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>nacos-common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.javatuples</groupId>
-            <artifactId>javatuples</artifactId>
         </dependency>
         <dependency>
             <groupId>com.caucho</groupId>

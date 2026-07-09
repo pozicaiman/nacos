@@ -17,9 +17,10 @@
 package com.alibaba.nacos.core.cluster;
 
 import com.alibaba.nacos.api.ability.ServerAbilities;
+import com.alibaba.nacos.api.common.NodeState;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.response.ResponseCode;
-import com.alibaba.nacos.core.cluster.remote.request.MemberReportRequest;
+import com.alibaba.nacos.auth.config.NacosAuthConfigHolder;
 import com.alibaba.nacos.auth.util.AuthHeaderUtil;
 import com.alibaba.nacos.common.JustForTest;
 import com.alibaba.nacos.common.http.Callback;
@@ -35,12 +36,14 @@ import com.alibaba.nacos.common.notify.listener.Subscriber;
 import com.alibaba.nacos.common.utils.ConcurrentHashSet;
 import com.alibaba.nacos.common.utils.ExceptionUtil;
 import com.alibaba.nacos.common.utils.JacksonUtils;
-import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.common.utils.VersionUtils;
 import com.alibaba.nacos.core.ability.ServerAbilityInitializer;
 import com.alibaba.nacos.core.ability.ServerAbilityInitializerHolder;
+import com.alibaba.nacos.core.ability.control.ServerAbilityControlManager;
+import com.alibaba.nacos.core.auth.NacosServerAuthConfig;
 import com.alibaba.nacos.core.cluster.lookup.LookupFactory;
 import com.alibaba.nacos.core.cluster.remote.ClusterRpcClientProxy;
+import com.alibaba.nacos.core.cluster.remote.request.MemberReportRequest;
 import com.alibaba.nacos.core.cluster.remote.response.MemberReportResponse;
 import com.alibaba.nacos.core.utils.Commons;
 import com.alibaba.nacos.core.utils.GenericType;
@@ -50,12 +53,9 @@ import com.alibaba.nacos.sys.env.Constants;
 import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.sys.utils.ApplicationUtils;
 import com.alibaba.nacos.sys.utils.InetUtils;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
-import org.springframework.context.ApplicationListener;
+import jakarta.annotation.PreDestroy;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PreDestroy;
-import javax.servlet.ServletContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -65,7 +65,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
-import com.alibaba.nacos.core.ability.control.ServerAbilityControlManager;
 
 import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARAM;
 
@@ -89,22 +88,20 @@ import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARA
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
 @Component(value = "serverMemberManager")
-public class ServerMemberManager implements ApplicationListener<WebServerInitializedEvent> {
+public class ServerMemberManager implements NacosMemberManager {
     
-    private final NacosAsyncRestTemplate asyncRestTemplate = HttpClientBeanHolder.getNacosAsyncRestTemplate(
+    private final NacosAsyncRestTemplate asyncRestTemplate =
+        HttpClientBeanHolder.getNacosAsyncRestTemplate(
             Loggers.CORE);
     
     private static final int DEFAULT_SERVER_PORT = 8848;
     
-    private static final String SERVER_PORT_PROPERTY = "server.port";
+    private static final String SERVER_PORT_PROPERTY = "nacos.server.main.port";
     
-    private static final String SPRING_MANAGEMENT_CONTEXT_NAMESPACE = "management";
-    
-    private static final String MEMBER_CHANGE_EVENT_QUEUE_SIZE_PROPERTY = "nacos.member-change-event.queue.size";
+    private static final String MEMBER_CHANGE_EVENT_QUEUE_SIZE_PROPERTY =
+        "nacos.member-change-event.queue.size";
     
     private static final int DEFAULT_MEMBER_CHANGE_EVENT_QUEUE_SIZE = 128;
-    
-    private static boolean isUseAddressServer = false;
     
     private static final long DEFAULT_TASK_DELAY_TIME = 5_000L;
     
@@ -112,11 +109,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
      * Cluster node list.
      */
     private volatile ConcurrentSkipListMap<String, Member> serverList;
-    
-    /**
-     * Is this node in the cluster list.
-     */
-    private static volatile boolean isInIpList = true;
     
     /**
      * port.
@@ -139,7 +131,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     private volatile Member self;
     
     private volatile long memberReportTs = System.currentTimeMillis();
-
+    
     /**
      * here is always the node information of the "UP" state.
      */
@@ -150,11 +142,11 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
      */
     private final MemberInfoReportTask infoReportTask = new MemberInfoReportTask();
     
-    private final UnhealthyMemberInfoReportTask unhealthyMemberInfoReportTask = new UnhealthyMemberInfoReportTask();
-
-    public ServerMemberManager(ServletContext servletContext) throws Exception {
+    private final UnhealthyMemberInfoReportTask unhealthyMemberInfoReportTask =
+        new UnhealthyMemberInfoReportTask();
+    
+    public ServerMemberManager() throws Exception {
         this.serverList = new ConcurrentSkipListMap<>();
-        EnvUtil.setContextPath(servletContext.getContextPath());
         init();
     }
     
@@ -164,8 +156,10 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         this.localAddress = InetUtils.getSelfIP() + ":" + port;
         this.self = MemberUtil.singleParse(this.localAddress);
         this.self.setExtendVal(MemberMetaDataConstants.VERSION, VersionUtils.version);
+        //works  for gray model upgrade,can delete after compatibility period.
+        this.self.setExtendVal(MemberMetaDataConstants.SUPPORT_GRAY_MODEL, true);
         this.self.setGrpcReportEnabled(true);
-
+        
         // init abilities.
         this.self.setAbilities(initMemberAbilities());
         
@@ -176,10 +170,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         
         // Initializes the lookup mode
         initAndStartLookup();
-        
-        if (serverList.isEmpty()) {
-            throw new NacosException(NacosException.SERVER_ERROR, "cannot get serverlist, so exit.");
-        }
         
         Loggers.CORE.info("The cluster resource is initialized");
     }
@@ -192,21 +182,23 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
      */
     private ServerAbilities initMemberAbilities() {
         ServerAbilities serverAbilities = new ServerAbilities();
-        for (ServerAbilityInitializer each : ServerAbilityInitializerHolder.getInstance().getInitializers()) {
+        for (ServerAbilityInitializer each : ServerAbilityInitializerHolder.getInstance()
+            .getInitializers()) {
             each.initialize(serverAbilities);
         }
         return serverAbilities;
     }
-
+    
     private void registerClusterEvent() {
         // Register node change events
         NotifyCenter.registerToPublisher(MembersChangeEvent.class,
-                EnvUtil.getProperty(MEMBER_CHANGE_EVENT_QUEUE_SIZE_PROPERTY, Integer.class,
-                        DEFAULT_MEMBER_CHANGE_EVENT_QUEUE_SIZE));
+            EnvUtil.getProperty(MEMBER_CHANGE_EVENT_QUEUE_SIZE_PROPERTY, Integer.class,
+                DEFAULT_MEMBER_CHANGE_EVENT_QUEUE_SIZE));
         
         // The address information of this node needs to be dynamically modified
         // when registering the IP change of this node
         NotifyCenter.registerSubscriber(new Subscriber<InetUtils.IPChangeEvent>() {
+            
             @Override
             public void onEvent(InetUtils.IPChangeEvent event) {
                 String newAddress = event.getNewIP() + ":" + port;
@@ -233,10 +225,10 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     
     private void initAndStartLookup() throws NacosException {
         this.lookup = LookupFactory.createLookUp(this);
-        isUseAddressServer = this.lookup.useAddressServer();
+        this.lookup.useAddressServer();
         this.lookup.start();
     }
-
+    
     /**
      * switch look up.
      *
@@ -245,12 +237,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
      */
     public void switchLookup(String name) throws NacosException {
         this.lookup = LookupFactory.switchLookup(name, this);
-        isUseAddressServer = this.lookup.useAddressServer();
+        this.lookup.useAddressServer();
         this.lookup.start();
-    }
-
-    public static boolean isUseAddressServer() {
-        return isUseAddressServer;
     }
     
     /**
@@ -264,7 +252,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         
         String address = newMember.getAddress();
         if (!serverList.containsKey(address)) {
-            Loggers.CLUSTER.warn("address {} want to update Member, but not in member list!", newMember.getAddress());
+            Loggers.CLUSTER.warn("address {} want to update Member, but not in member list!",
+                newMember.getAddress());
             return false;
         }
         
@@ -273,7 +262,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                 memberAddressInfos.remove(newMember.getAddress());
             }
             boolean isPublishChangeEvent = MemberUtil.isBasicInfoChanged(newMember, member);
-            newMember.setExtendVal(MemberMetaDataConstants.LAST_REFRESH_TIME, System.currentTimeMillis());
+            newMember.setExtendVal(MemberMetaDataConstants.LAST_REFRESH_TIME,
+                System.currentTimeMillis());
             MemberUtil.copy(newMember, member);
             if (isPublishChangeEvent) {
                 // member basic data changes and all listeners need to be notified
@@ -286,7 +276,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     }
     
     void notifyMemberChange(Member member) {
-        NotifyCenter.publishEvent(MembersChangeEvent.builder().trigger(member).members(allMembers()).build());
+        NotifyCenter.publishEvent(
+            MembersChangeEvent.builder().trigger(member).members(allMembers()).build());
     }
     
     /**
@@ -301,9 +292,12 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             return true;
         }
         
-        // If only IP information is passed in, a fuzzy match is required
-        for (Map.Entry<String, Member> entry : serverList.entrySet()) {
-            if (StringUtils.contains(entry.getKey(), address)) {
+        // If only the IP is passed in (without port), match members by IP exactly.
+        // Comparing the member IP avoids IPv4 prefix collisions (e.g. "192.168.1.10"
+        // wrongly matching "192.168.1.100:8848") as well as IPv6 parsing pitfalls from
+        // naive ":" splitting (e.g. "[::1]:8848").
+        for (Member member : serverList.values()) {
+            if (address.equals(member.getIp())) {
                 result = true;
                 break;
             }
@@ -340,6 +334,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
      *
      * @return {@link Collection} all member
      */
+    @Override
     public Collection<Member> allMembers() {
         // We need to do a copy to avoid affecting the real data
         HashSet<Member> set = new HashSet<>(serverList.values());
@@ -358,19 +353,17 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         return members;
     }
     
-    synchronized boolean memberChange(Collection<Member> members) {
+    @Override
+    public synchronized boolean memberChange(Collection<Member> members) {
         
         if (members == null || members.isEmpty()) {
             return false;
         }
         
         boolean isContainSelfIp = members.stream()
-                .anyMatch(ipPortTmp -> Objects.equals(localAddress, ipPortTmp.getAddress()));
+            .anyMatch(ipPortTmp -> Objects.equals(localAddress, ipPortTmp.getAddress()));
         
-        if (isContainSelfIp) {
-            isInIpList = true;
-        } else {
-            isInIpList = false;
+        if (!isContainSelfIp) {
             members.add(this.self);
             Loggers.CLUSTER.warn("[serverlist] self ip {} not in serverlist {}", self, members);
         }
@@ -464,7 +457,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         }
         return false;
     }
-
+    
     /**
      * this member {@link Member#getState()} is health.
      *
@@ -483,20 +476,14 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         return Objects.equals(serverList.firstKey(), this.localAddress);
     }
     
-    @Override
-    public void onApplicationEvent(WebServerInitializedEvent event) {
-        String serverNamespace = event.getApplicationContext().getServerNamespace();
-        if (SPRING_MANAGEMENT_CONTEXT_NAMESPACE.equals(serverNamespace)) {
-            // ignore
-            // fix#issue https://github.com/alibaba/nacos/issues/7230
-            return;
-        }
+    public void setSelfReady(int port) {
         getSelf().setState(NodeState.UP);
         if (!EnvUtil.getStandaloneMode()) {
             GlobalExecutor.scheduleByCommon(this.infoReportTask, DEFAULT_TASK_DELAY_TIME);
-            GlobalExecutor.scheduleByCommon(this.unhealthyMemberInfoReportTask, DEFAULT_TASK_DELAY_TIME);
+            GlobalExecutor.scheduleByCommon(this.unhealthyMemberInfoReportTask,
+                DEFAULT_TASK_DELAY_TIME);
         }
-        EnvUtil.setPort(event.getWebServer().getPort());
+        EnvUtil.setPort(port);
         EnvUtil.setLocalAddress(this.localAddress);
         Loggers.CLUSTER.info("This node is ready to provide external services");
     }
@@ -524,11 +511,6 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     }
     
     @JustForTest
-    public void setMemberAddressInfos(Set<String> memberAddressInfos) {
-        this.memberAddressInfos = memberAddressInfos;
-    }
-    
-    @JustForTest
     public MemberInfoReportTask getInfoReportTask() {
         return infoReportTask;
     }
@@ -537,24 +519,18 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         return Collections.unmodifiableMap(serverList);
     }
     
-    public static boolean isInIpList() {
-        return isInIpList;
-    }
-    
-    // Synchronize the metadata information of a node
-    // A health check of the target node is also attached
-    
     class MemberInfoReportTask extends Task {
         
-        private final GenericType<RestResult<String>> reference = new GenericType<RestResult<String>>() {
-        };
+        private final GenericType<RestResult<String>> reference =
+            new GenericType<RestResult<String>>() {
+            };
         
         private int cursor = 0;
         
         private ClusterRpcClientProxy clusterRpcClientProxy;
-
+        
         public static final long REPORT_INTERVAL = 50000L;
-
+        
         @Override
         protected void executeBody() {
             List<Member> members = ServerMemberManager.this.allMembersWithoutSelf();
@@ -564,7 +540,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                 Loggers.CLUSTER.info("[serverlist] membercount={}", members.size() + 1);
                 memberReportTs = System.currentTimeMillis();
             }
-
+            
             if (members.isEmpty()) {
                 return;
             }
@@ -573,62 +549,70 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             Member target = members.get(cursor);
             
             Loggers.CLUSTER.debug("report the metadata to the node : {}", target.getAddress());
-
+            
             // adapt old version
-            if (target.getAbilities().getRemoteAbility().isGrpcReportEnabled() || target.isGrpcReportEnabled()) {
+            if (target.getAbilities().getRemoteAbility().isGrpcReportEnabled()
+                || target.isGrpcReportEnabled()) {
                 reportByGrpc(target);
             } else {
                 reportByHttp(target);
             }
         }
-
+        
         protected void reportByHttp(Member target) {
-            final String url = HttpUtils.buildUrl(false, target.getAddress(), EnvUtil.getContextPath(),
+            final String url =
+                HttpUtils.buildUrl(false, target.getAddress(), EnvUtil.getContextPath(),
                     Commons.NACOS_CORE_CONTEXT, "/cluster/report");
             
             try {
-                Header header = Header.newInstance().addParam(Constants.NACOS_SERVER_HEADER, VersionUtils.version);
-                AuthHeaderUtil.addIdentityToHeader(header);
+                Header header = Header.newInstance().addParam(Constants.NACOS_SERVER_HEADER,
+                    VersionUtils.version);
+                AuthHeaderUtil.addIdentityToHeader(header, NacosAuthConfigHolder.getInstance()
+                    .getNacosAuthConfigByScope(NacosServerAuthConfig.NACOS_SERVER_AUTH_SCOPE));
                 asyncRestTemplate.post(url, header, Query.EMPTY, getSelf(), reference.getType(),
-                        new Callback<String>() {
-                            @Override
-                            public void onReceive(RestResult<String> result) {
-                                if (result.ok()) {
-                                    handleReportResult(result.getData(), target);
-                                } else {
-                                    Loggers.CLUSTER.warn("failed to report new info to target node : {}, result : {}",
-                                            target.getAddress(), result);
-                                    MemberUtil.onFail(ServerMemberManager.this, target);
-                                    // try to connect by grpc next time, adapt old version
-                                    target.setGrpcReportEnabled(true);
-                                    target.getAbilities().getRemoteAbility().setGrpcReportEnabled(true);
-                                }
-                            }
-                            
-                            @Override
-                            public void onError(Throwable throwable) {
-                                Loggers.CLUSTER.error("failed to report new info to target node : {}, error : {}",
-                                        target.getAddress(), ExceptionUtil.getAllExceptionMsg(throwable));
-                                MemberUtil.onFail(ServerMemberManager.this, target, throwable);
+                    new Callback<String>() {
+                        
+                        @Override
+                        public void onReceive(RestResult<String> result) {
+                            if (result.ok()) {
+                                handleReportResult(result.getData(), target);
+                            } else {
+                                Loggers.CLUSTER.warn(
+                                    "failed to report new info to target node : {}, result : {}",
+                                    target.getAddress(), result);
+                                MemberUtil.onFail(ServerMemberManager.this, target);
                                 // try to connect by grpc next time, adapt old version
                                 target.setGrpcReportEnabled(true);
                                 target.getAbilities().getRemoteAbility().setGrpcReportEnabled(true);
                             }
+                        }
+                        
+                        @Override
+                        public void onError(Throwable throwable) {
+                            Loggers.CLUSTER.error(
+                                "failed to report new info to target node : {}, error : {}",
+                                target.getAddress(), ExceptionUtil.getAllExceptionMsg(throwable));
+                            MemberUtil.onFail(ServerMemberManager.this, target, throwable);
+                            // try to connect by grpc next time, adapt old version
+                            target.setGrpcReportEnabled(true);
+                            target.getAbilities().getRemoteAbility().setGrpcReportEnabled(true);
+                        }
+                        
+                        @Override
+                        public void onCancel() {
                             
-                            @Override
-                            public void onCancel() {
-                            
-                            }
-                        });
+                        }
+                    });
             } catch (Throwable ex) {
-                Loggers.CLUSTER.error("failed to report new info to target node by http : {}, error : {}",
-                        target.getAddress(), ExceptionUtil.getAllExceptionMsg(ex));
+                Loggers.CLUSTER.error(
+                    "failed to report new info to target node by http : {}, error : {}",
+                    target.getAddress(), ExceptionUtil.getAllExceptionMsg(ex));
                 // try to connect by grpc next time, adapt old version
                 target.setGrpcReportEnabled(true);
                 target.getAbilities().getRemoteAbility().setGrpcReportEnabled(true);
             }
         }
-
+        
         protected void reportByGrpc(Member target) {
             //Todo  circular reference
             if (Objects.isNull(clusterRpcClientProxy)) {
@@ -636,14 +620,16 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             }
             if (!clusterRpcClientProxy.isRunning(target)) {
                 MemberUtil.onFail(ServerMemberManager.this, target,
-                        new NacosException(CLIENT_INVALID_PARAM, "No rpc client related to member: " + target));
+                    new NacosException(CLIENT_INVALID_PARAM,
+                        "No rpc client related to member: " + target));
                 return;
             }
-
+            
             MemberReportRequest memberReportRequest = new MemberReportRequest(getSelf());
-
+            
             try {
-                MemberReportResponse response = (MemberReportResponse) clusterRpcClientProxy.sendRequest(target,
+                MemberReportResponse response =
+                    (MemberReportResponse) clusterRpcClientProxy.sendRequest(target,
                         memberReportRequest);
                 if (response.getResultCode() == ResponseCode.SUCCESS.getCode()) {
                     MemberUtil.onSuccess(ServerMemberManager.this, target, response.getNode());
@@ -655,8 +641,9 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                     target.getAbilities().getRemoteAbility().setGrpcReportEnabled(false);
                     target.setGrpcReportEnabled(false);
                 }
-                Loggers.CLUSTER.error("failed to report new info to target node by grpc : {}, error : {}",
-                        target.getAddress(), ExceptionUtil.getAllExceptionMsg(e));
+                Loggers.CLUSTER.error(
+                    "failed to report new info to target node by grpc : {}, error : {}",
+                    target.getAddress(), ExceptionUtil.getAllExceptionMsg(e));
             }
         }
         
@@ -664,7 +651,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         protected void after() {
             GlobalExecutor.scheduleByCommon(this, 2_000L);
         }
-
+        
         private void handleReportResult(String reportResult, Member target) {
             if (isBooleanResult(reportResult)) {
                 MemberUtil.onSuccess(ServerMemberManager.this, target);
@@ -674,23 +661,25 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                 Member member = JacksonUtils.toObj(reportResult, Member.class);
                 MemberUtil.onSuccess(ServerMemberManager.this, target, member);
             } catch (Exception e) {
-                Loggers.CLUSTER.warn("Receive invalid report result from target {}, context {}", target.getAddress(),
-                        reportResult);
+                Loggers.CLUSTER.warn("Receive invalid report result from target {}, context {}",
+                    target.getAddress(),
+                    reportResult);
                 MemberUtil.onSuccess(ServerMemberManager.this, target);
             }
         }
-
+        
         private boolean isBooleanResult(String reportResult) {
-            return Boolean.TRUE.toString().equals(reportResult) || Boolean.FALSE.toString().equals(reportResult);
+            return Boolean.TRUE.toString().equals(reportResult)
+                || Boolean.FALSE.toString().equals(reportResult);
         }
     }
-
+    
     class UnhealthyMemberInfoReportTask extends MemberInfoReportTask {
-
+        
         @Override
         protected void executeBody() {
             List<Member> members = ServerMemberManager.this.allMembersWithoutSelf();
-
+            
             if (members.isEmpty()) {
                 return;
             }
@@ -701,12 +690,13 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                     } else {
                         reportByHttp(member);
                     }
-                    Loggers.CLUSTER.warn("report the metadata to the unhealthy node : {}", member.getAddress());
-
+                    Loggers.CLUSTER.warn("report the metadata to the unhealthy node : {}",
+                        member.getAddress());
+                    
                 }
             }
         }
-
+        
         @Override
         protected void after() {
             GlobalExecutor.scheduleByCommon(this, 5_000L);

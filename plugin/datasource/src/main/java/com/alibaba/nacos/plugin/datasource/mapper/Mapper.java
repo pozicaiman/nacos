@@ -83,4 +83,12 @@ public interface Mapper {
      * @return an array of column names indicating the columns
      */
     String[] getPrimaryKeyGeneratedKeys();
+    
+    /**
+     * Get function by functionName.
+     *
+     * @param functionName functionName
+     * @return function
+     */
+    String getFunction(String functionName);
 }

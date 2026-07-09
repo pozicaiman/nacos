@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 
 import java.io.PrintWriter;
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * ConfigInfoBase.
@@ -48,7 +49,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
     private String encryptedDataKey;
     
     public ConfigInfoBase() {
-    
+        
     }
     
     public ConfigInfoBase(String dataId, String group, String content) {
@@ -214,8 +215,14 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
     }
     
     @Override
+    public int hashCode() {
+        return Objects.hash(dataId, group, content, md5);
+    }
+    
+    @Override
     public String toString() {
-        return "ConfigInfoBase{" + "id=" + id + ", dataId='" + dataId + '\'' + ", group='" + group + '\''
-                + ", content='" + content + '\'' + ", md5='" + md5 + '\'' + '}';
+        return "ConfigInfoBase{" + "id=" + id + ", dataId='" + dataId + '\'' + ", group='" + group
+            + '\''
+            + ", content='" + content + '\'' + ", md5='" + md5 + '\'' + '}';
     }
 }

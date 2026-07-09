@@ -19,102 +19,46 @@
 package com.alibaba.nacos.client.utils;
 
 import com.alibaba.nacos.api.PropertyKeyConst;
-import com.alibaba.nacos.client.env.NacosClientProperties;
 import com.alibaba.nacos.common.utils.MD5Utils;
-import com.alibaba.nacos.common.utils.VersionUtils;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.Properties;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class ParamUtilTest {
-    
-    private String defaultAppKey;
-    
-    private String defaultAppName;
-    
-    private String defaultContextPath;
-    
-    private String defaultVersion;
+class ParamUtilTest {
     
     private int defaultConnectTimeout;
     
+    private int defaultReadTimeout;
+    
     private double defaultPerTaskConfigSize;
     
-    private String defaultNodesPath;
-    
-    @Before
-    public void before() {
-        defaultAppKey = "";
-        defaultAppName = "unknown";
-        defaultContextPath = "nacos";
-        defaultVersion = VersionUtils.version;
+    @BeforeEach
+    void before() {
         defaultConnectTimeout = 1000;
+        defaultReadTimeout = 3000;
         defaultPerTaskConfigSize = 3000.0;
-        defaultNodesPath = "serverlist";
     }
     
-    @After
-    public void after() {
-        ParamUtil.setAppKey(defaultAppKey);
-        ParamUtil.setAppName(defaultAppName);
-        ParamUtil.setDefaultContextPath(defaultContextPath);
-        ParamUtil.setClientVersion(defaultVersion);
+    @AfterEach
+    void after() {
         ParamUtil.setConnectTimeout(defaultConnectTimeout);
+        ParamUtil.setReadTimeout(defaultReadTimeout);
         ParamUtil.setPerTaskConfigSize(defaultPerTaskConfigSize);
-        ParamUtil.setDefaultNodesPath(defaultNodesPath);
         System.clearProperty("NACOS.CONNECT.TIMEOUT");
+        System.clearProperty("NACOS_READ_TIMEOUT");
         System.clearProperty("PER_TASK_CONFIG_SIZE");
         System.clearProperty(PropertyKeyConst.SystemEnv.ALIBABA_ALIWARE_ENDPOINT_URL);
     }
     
     @Test
-    public void testGetAppKey() {
-        String defaultVal = ParamUtil.getAppKey();
-        assertEquals(defaultAppKey, defaultVal);
-        
-        String expect = "test";
-        ParamUtil.setAppKey(expect);
-        assertEquals(expect, ParamUtil.getAppKey());
-    }
-    
-    @Test
-    public void testGetAppName() {
-        String defaultVal = ParamUtil.getAppName();
-        assertEquals(defaultAppName, defaultVal);
-        
-        String expect = "test";
-        ParamUtil.setAppName(expect);
-        assertEquals(expect, ParamUtil.getAppName());
-    }
-    
-    @Test
-    public void testGetDefaultContextPath() {
-        String defaultVal = ParamUtil.getDefaultContextPath();
-        assertEquals(defaultContextPath, defaultVal);
-        
-        String expect = "test";
-        ParamUtil.setDefaultContextPath(expect);
-        assertEquals(expect, ParamUtil.getDefaultContextPath());
-    }
-    
-    @Test
-    public void testGetClientVersion() {
-        String defaultVal = ParamUtil.getClientVersion();
-        assertEquals(defaultVersion, defaultVal);
-        
-        String expect = "test";
-        ParamUtil.setClientVersion(expect);
-        assertEquals(expect, ParamUtil.getClientVersion());
-    }
-    
-    @Test
-    public void testSetConnectTimeout() {
+    void testSetConnectTimeout() {
         int defaultVal = ParamUtil.getConnectTimeout();
         assertEquals(defaultConnectTimeout, defaultVal);
         
@@ -124,7 +68,17 @@ public class ParamUtilTest {
     }
     
     @Test
-    public void testGetPerTaskConfigSize() {
+    void testSetReadTimeout() {
+        int defaultVal = ParamUtil.getReadTimeout();
+        assertEquals(defaultReadTimeout, defaultVal);
+        
+        int expect = 3000;
+        ParamUtil.setReadTimeout(expect);
+        assertEquals(expect, ParamUtil.getReadTimeout());
+    }
+    
+    @Test
+    void testGetPerTaskConfigSize() {
         double defaultVal = ParamUtil.getPerTaskConfigSize();
         assertEquals(defaultPerTaskConfigSize, defaultVal, 0.01);
         
@@ -134,77 +88,49 @@ public class ParamUtilTest {
     }
     
     @Test
-    public void testGetDefaultServerPort() {
-        String actual = ParamUtil.getDefaultServerPort();
-        assertEquals("8848", actual);
+    void testInitConnectionTimeoutWithException() throws Throwable {
+        assertThrows(IllegalArgumentException.class, () -> {
+            Method method = ParamUtil.class.getDeclaredMethod("initConnectionTimeout");
+            method.setAccessible(true);
+            System.setProperty("NACOS.CONNECT.TIMEOUT", "test");
+            try {
+                method.invoke(null);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
+        });
     }
     
     @Test
-    public void testGetDefaultNodesPath() {
-        String defaultVal = ParamUtil.getDefaultNodesPath();
-        assertEquals("serverlist", defaultVal);
-        
-        String expect = "test";
-        ParamUtil.setDefaultNodesPath(expect);
-        assertEquals(expect, ParamUtil.getDefaultNodesPath());
+    void testInitReadTimeoutWithException() throws Throwable {
+        assertThrows(IllegalArgumentException.class, () -> {
+            Method method = ParamUtil.class.getDeclaredMethod("initReadTimeout");
+            method.setAccessible(true);
+            System.setProperty("NACOS.READ.TIMEOUT", "test");
+            try {
+                method.invoke(null);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
+        });
     }
     
     @Test
-    public void testParseNamespace() {
-        String expect = "test";
-        Properties properties = new Properties();
-        properties.setProperty(PropertyKeyConst.NAMESPACE, expect);
-        
-        final NacosClientProperties nacosClientProperties = NacosClientProperties.PROTOTYPE.derive(properties);
-        String actual = ParamUtil.parseNamespace(nacosClientProperties);
-        assertEquals(expect, actual);
+    void testInitPerTaskConfigSizeWithException() throws Throwable {
+        assertThrows(IllegalArgumentException.class, () -> {
+            Method method = ParamUtil.class.getDeclaredMethod("initPerTaskConfigSize");
+            method.setAccessible(true);
+            System.setProperty("PER_TASK_CONFIG_SIZE", "test");
+            try {
+                method.invoke(null);
+            } catch (InvocationTargetException e) {
+                throw e.getCause();
+            }
+        });
     }
     
     @Test
-    public void testParsingEndpointRule() {
-        String url = "${test:www.example.com}";
-        String actual = ParamUtil.parsingEndpointRule(url);
-        assertEquals("www.example.com", actual);
-    }
-    
-    @Test(expected = IllegalArgumentException.class)
-    public void testInitConnectionTimeoutWithException() throws Throwable {
-        Method method = ParamUtil.class.getDeclaredMethod("initConnectionTimeout");
-        method.setAccessible(true);
-        System.setProperty("NACOS.CONNECT.TIMEOUT", "test");
-        try {
-            method.invoke(null);
-        } catch (InvocationTargetException e) {
-            throw e.getCause();
-        }
-    }
-    
-    @Test(expected = IllegalArgumentException.class)
-    public void testInitPerTaskConfigSizeWithException() throws Throwable {
-        Method method = ParamUtil.class.getDeclaredMethod("initPerTaskConfigSize");
-        method.setAccessible(true);
-        System.setProperty("PER_TASK_CONFIG_SIZE", "test");
-        try {
-            method.invoke(null);
-        } catch (InvocationTargetException e) {
-            throw e.getCause();
-        }
-    }
-    
-    @Test
-    public void testParsingEndpointRuleFromSystem() {
-        System.setProperty(PropertyKeyConst.SystemEnv.ALIBABA_ALIWARE_ENDPOINT_URL, "alibaba_aliware_endpoint_url");
-        assertEquals("alibaba_aliware_endpoint_url", ParamUtil.parsingEndpointRule(null));
-    }
-    
-    @Test
-    public void testParsingEndpointRuleFromSystemWithParam() {
-        System.setProperty(PropertyKeyConst.SystemEnv.ALIBABA_ALIWARE_ENDPOINT_URL, "alibaba_aliware_endpoint_url");
-        assertEquals("alibaba_aliware_endpoint_url", ParamUtil.parsingEndpointRule("${abc:xxx}"));
-    }
-    
-    @Test
-    public void testSimplyEnvNameIfOverLimit() {
+    void testSimplyEnvNameIfOverLimit() {
         StringBuilder envNameOverLimitBuilder = new StringBuilder("test");
         for (int i = 0; i < 50; i++) {
             envNameOverLimitBuilder.append(i);
@@ -215,8 +141,14 @@ public class ParamUtilTest {
         assertEquals(expect, actual);
     }
     
-    @Test public void testSimplyEnvNameNotOverLimit() {
+    @Test
+    void testSimplyEnvNameNotOverLimit() {
         String expect = "test";
         assertEquals(expect, ParamUtil.simplyEnvNameIfOverLimit(expect));
+    }
+    
+    @Test
+    void testConstructor() {
+        assertNotNull(new ParamUtil());
     }
 }

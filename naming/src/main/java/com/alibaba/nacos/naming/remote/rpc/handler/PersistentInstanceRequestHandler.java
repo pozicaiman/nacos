@@ -16,6 +16,7 @@
 
 package com.alibaba.nacos.naming.remote.rpc.handler;
 
+import com.alibaba.nacos.api.annotation.Since;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import com.alibaba.nacos.api.naming.remote.NamingRemoteConstants;
@@ -28,6 +29,7 @@ import com.alibaba.nacos.common.trace.DeregisterInstanceReason;
 import com.alibaba.nacos.common.trace.event.naming.DeregisterInstanceTraceEvent;
 import com.alibaba.nacos.common.trace.event.naming.RegisterInstanceTraceEvent;
 import com.alibaba.nacos.core.control.TpsControl;
+import com.alibaba.nacos.core.namespace.filter.NamespaceValidation;
 import com.alibaba.nacos.core.paramcheck.ExtractorManager;
 import com.alibaba.nacos.core.paramcheck.impl.PersistentInstanceRequestParamExtractor;
 import com.alibaba.nacos.core.remote.RequestHandler;
@@ -35,6 +37,7 @@ import com.alibaba.nacos.naming.core.v2.client.impl.IpPortBasedClient;
 import com.alibaba.nacos.naming.core.v2.pojo.Service;
 import com.alibaba.nacos.naming.core.v2.service.impl.PersistentClientOperationServiceImpl;
 import com.alibaba.nacos.naming.utils.InstanceUtil;
+import com.alibaba.nacos.naming.utils.NamingRequestUtil;
 import com.alibaba.nacos.plugin.auth.constant.ActionTypes;
 import org.springframework.stereotype.Component;
 
@@ -43,22 +46,29 @@ import org.springframework.stereotype.Component;
  *
  * @author blake.qiu
  */
+@Since("2.0.0")
 @Component
-public class PersistentInstanceRequestHandler extends RequestHandler<PersistentInstanceRequest, InstanceResponse> {
-
+public class PersistentInstanceRequestHandler
+    extends RequestHandler<PersistentInstanceRequest, InstanceResponse> {
+    
     private final PersistentClientOperationServiceImpl clientOperationService;
-
-    public PersistentInstanceRequestHandler(PersistentClientOperationServiceImpl clientOperationService) {
+    
+    public PersistentInstanceRequestHandler(
+        PersistentClientOperationServiceImpl clientOperationService) {
         this.clientOperationService = clientOperationService;
     }
-
+    
     @Override
-    @TpsControl(pointName = "RemoteNamingInstanceRegisterDeregister", name = "RemoteNamingInstanceRegisterDeregister")
+    @NamespaceValidation
+    @TpsControl(pointName = "RemoteNamingInstanceRegisterDeregister",
+        name = "RemoteNamingInstanceRegisterDeregister")
     @Secured(action = ActionTypes.WRITE)
     @ExtractorManager.Extractor(rpcExtractor = PersistentInstanceRequestParamExtractor.class)
-    public InstanceResponse handle(PersistentInstanceRequest request, RequestMeta meta) throws NacosException {
-        Service service = Service.newService(request.getNamespace(), request.getGroupName(), request.getServiceName(),
-                false);
+    public InstanceResponse handle(PersistentInstanceRequest request, RequestMeta meta)
+        throws NacosException {
+        Service service = Service.newService(request.getNamespace(), request.getGroupName(),
+            request.getServiceName(),
+            false);
         InstanceUtil.setInstanceIdIfEmpty(request.getInstance(), service.getGroupedServiceName());
         switch (request.getType()) {
             case NamingRemoteConstants.REGISTER_INSTANCE:
@@ -67,26 +77,32 @@ public class PersistentInstanceRequestHandler extends RequestHandler<PersistentI
                 return deregisterInstance(service, request, meta);
             default:
                 throw new NacosException(NacosException.INVALID_PARAM,
-                        String.format("Unsupported request type %s", request.getType()));
+                    String.format("Unsupported request type %s", request.getType()));
         }
     }
     
-    private InstanceResponse registerInstance(Service service, PersistentInstanceRequest request, RequestMeta meta) {
+    private InstanceResponse registerInstance(Service service, PersistentInstanceRequest request,
+        RequestMeta meta) {
         Instance instance = request.getInstance();
         String clientId = IpPortBasedClient.getClientId(instance.toInetAddr(), false);
         clientOperationService.registerInstance(service, instance, clientId);
-        NotifyCenter.publishEvent(new RegisterInstanceTraceEvent(System.currentTimeMillis(), meta.getClientIp(), true,
-                service.getNamespace(), service.getGroup(), service.getName(), instance.getIp(), instance.getPort()));
+        NotifyCenter.publishEvent(new RegisterInstanceTraceEvent(System.currentTimeMillis(),
+            NamingRequestUtil.getSourceIpForGrpcRequest(meta), true, service.getNamespace(),
+            service.getGroup(),
+            service.getName(), instance.getIp(), instance.getPort()));
         return new InstanceResponse(NamingRemoteConstants.REGISTER_INSTANCE);
     }
     
-    private InstanceResponse deregisterInstance(Service service, PersistentInstanceRequest request, RequestMeta meta) {
+    private InstanceResponse deregisterInstance(Service service, PersistentInstanceRequest request,
+        RequestMeta meta) {
         Instance instance = request.getInstance();
         String clientId = IpPortBasedClient.getClientId(instance.toInetAddr(), false);
         clientOperationService.deregisterInstance(service, instance, clientId);
-        NotifyCenter.publishEvent(new DeregisterInstanceTraceEvent(System.currentTimeMillis(), meta.getClientIp(), true,
-                DeregisterInstanceReason.REQUEST, service.getNamespace(), service.getGroup(), service.getName(),
-                instance.getIp(), instance.getPort()));
+        NotifyCenter.publishEvent(new DeregisterInstanceTraceEvent(System.currentTimeMillis(),
+            NamingRequestUtil.getSourceIpForGrpcRequest(meta), true,
+            DeregisterInstanceReason.REQUEST,
+            service.getNamespace(), service.getGroup(), service.getName(), instance.getIp(),
+            instance.getPort()));
         return new InstanceResponse(NamingRemoteConstants.DE_REGISTER_INSTANCE);
     }
 }

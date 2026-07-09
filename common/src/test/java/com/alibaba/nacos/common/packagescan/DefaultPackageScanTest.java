@@ -17,15 +17,14 @@
 package com.alibaba.nacos.common.packagescan;
 
 import com.alibaba.nacos.common.packagescan.mock.AnnotationClass;
-import com.alibaba.nacos.common.packagescan.mock.MockClass;
 import com.alibaba.nacos.common.packagescan.mock.TestScan;
 import com.alibaba.nacos.common.packagescan.resource.PathMatchingResourcePatternResolver;
 import com.alibaba.nacos.common.packagescan.resource.Resource;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,53 +32,36 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
-public class DefaultPackageScanTest {
+@ExtendWith(MockitoExtension.class)
+class DefaultPackageScanTest {
     
     @Mock
     PathMatchingResourcePatternResolver pathMatchingResourcePatternResolver;
     
     DefaultPackageScan packageScan;
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         packageScan = new DefaultPackageScan();
     }
     
     @Test
-    public void testGetSubTypesOf() {
+    void testGetTypesAnnotatedWith() {
         packageScan = new DefaultPackageScan();
-        Set<Class<MockClass>> subTypesOf = packageScan
-                .getSubTypesOf(AnnotationClass.class.getPackage().getName(), MockClass.class);
-        assertEquals(3, subTypesOf.size());
-    }
-    
-    @Test
-    public void testGetTypesAnnotatedWith() {
-        packageScan = new DefaultPackageScan();
-        Set<Class<Object>> actual = packageScan
-                .getTypesAnnotatedWith(AnnotationClass.class.getPackage().getName(), TestScan.class);
+        Set<Class<Object>> actual = packageScan.getTypesAnnotatedWith(AnnotationClass.class.getPackage().getName(),
+                TestScan.class);
         assertEquals(1, actual.size());
         assertEquals(AnnotationClass.class, actual.iterator().next());
     }
     
     @Test
-    public void testGetSubTypesOfWithException() throws NoSuchFieldException, IllegalAccessException, IOException {
-        setResolver();
-        String path = AnnotationClass.class.getPackage().getName();
-        when(pathMatchingResourcePatternResolver.getResources(anyString())).thenThrow(new IOException("test"));
-        Set<Class<MockClass>> subTypesOf = packageScan.getSubTypesOf(path, MockClass.class);
-        assertTrue(subTypesOf.isEmpty());
-    }
-    
-    @Test
-    public void testGetTypesAnnotatedWithException() throws NoSuchFieldException, IllegalAccessException, IOException {
+    void testGetTypesAnnotatedWithException() throws NoSuchFieldException, IllegalAccessException, IOException {
         setResolver();
         String path = AnnotationClass.class.getPackage().getName();
         when(pathMatchingResourcePatternResolver.getResources(anyString())).thenThrow(new IOException("test"));
@@ -88,7 +70,7 @@ public class DefaultPackageScanTest {
     }
     
     @Test
-    public void testClassVersionNotMatch() throws NoSuchFieldException, IllegalAccessException, IOException {
+    void testClassVersionNotMatch() throws NoSuchFieldException, IllegalAccessException, IOException {
         setResolver();
         Resource resource = mock(Resource.class);
         byte[] testCase = new byte[8];
@@ -97,8 +79,8 @@ public class DefaultPackageScanTest {
         when(resource.getInputStream()).thenReturn(inputStream);
         String path = AnnotationClass.class.getPackage().getName();
         when(pathMatchingResourcePatternResolver.getResources(anyString())).thenReturn(new Resource[] {resource});
-        Set<Class<MockClass>> subTypesOf = packageScan.getSubTypesOf(path, MockClass.class);
-        assertTrue(subTypesOf.isEmpty());
+        Set<Class<Object>> actual = packageScan.getTypesAnnotatedWith(path, TestScan.class);
+        assertTrue(actual.isEmpty());
     }
     
     private void setResolver() throws NoSuchFieldException, IllegalAccessException {

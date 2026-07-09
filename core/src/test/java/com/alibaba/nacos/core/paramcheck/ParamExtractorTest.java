@@ -18,13 +18,13 @@ package com.alibaba.nacos.core.paramcheck;
 
 import com.alibaba.nacos.common.paramcheck.ParamInfo;
 import com.alibaba.nacos.core.paramcheck.impl.ConfigRequestParamExtractor;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * ParamCheckerTest.
@@ -32,25 +32,27 @@ import static org.junit.Assert.assertEquals;
  * @author 985492783@qq.com
  * @date 2023/11/7 20:16
  */
-public class ParamExtractorTest {
+class ParamExtractorTest {
     
     @Test
-    public void testCheckAnnotation() {
-        ExtractorManager.Extractor extractor = Controller.class.getAnnotation(ExtractorManager.Extractor.class);
+    void testCheckAnnotation() {
+        ExtractorManager.Extractor extractor =
+            Controller.class.getAnnotation(ExtractorManager.Extractor.class);
         AbstractRpcParamExtractor paramExtractor = ExtractorManager.getRpcExtractor(extractor);
-        assertEquals(paramExtractor.getClass().getSimpleName(), ConfigRequestParamExtractor.class.getSimpleName());
+        assertEquals(paramExtractor.getClass().getSimpleName(),
+            ConfigRequestParamExtractor.class.getSimpleName());
     }
     
     @ExtractorManager.Extractor(rpcExtractor = ConfigRequestParamExtractor.class)
     public static class Controller {
         
         public void testCheckNull() {
-        
+            
         }
         
         @ExtractorManager.Extractor(httpExtractor = TestHttpChecker.class)
         public void testCheck() {
-        
+            
         }
     }
     

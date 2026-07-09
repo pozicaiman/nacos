@@ -16,16 +16,18 @@
 
 package com.alibaba.nacos.api.model.v2;
 
-import static org.junit.Assert.assertEquals;
+import org.junit.jupiter.api.Test;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import org.junit.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-public class ErrorCodeTest {
+class ErrorCodeTest {
+    
     @Test
-    public void testCodeNotSame() {
+    void testCodeNotSame() {
         Class<ErrorCode> errorCodeClass = ErrorCode.class;
         
         ErrorCode[] errorCodes = errorCodeClass.getEnumConstants();
@@ -36,5 +38,18 @@ public class ErrorCodeTest {
         }
         
         assertEquals(errorCodes.length, codeSet.size());
+    }
+    
+    @Test
+    void testGetErrorCode() {
+        // 测试存在的错误码
+        assertEquals(ErrorCode.SUCCESS, ErrorCode.getErrorCode("SUCCESS"));
+        assertEquals(ErrorCode.PARAMETER_MISSING, ErrorCode.getErrorCode("PARAMETER_MISSING"));
+        assertEquals(ErrorCode.SERVER_ERROR, ErrorCode.getErrorCode("SERVER_ERROR"));
+        
+        // 测试不存在的错误码
+        assertNull(ErrorCode.getErrorCode("NON_EXISTENT_ERROR"));
+        assertNull(ErrorCode.getErrorCode(null));
+        assertNull(ErrorCode.getErrorCode(""));
     }
 }

@@ -33,7 +33,7 @@ public class UpdateSwitchForm implements Serializable {
     
     private static final long serialVersionUID = -1580959130954136990L;
     
-    private Boolean debug;
+    private boolean debug;
     
     private String entry;
     
@@ -50,19 +50,19 @@ public class UpdateSwitchForm implements Serializable {
     public void validate() throws NacosApiException {
         if (StringUtils.isBlank(entry)) {
             throw new NacosApiException(HttpStatus.BAD_REQUEST.value(), ErrorCode.PARAMETER_MISSING,
-                    "Required parameter 'entry' type String is not present");
+                "Required parameter 'entry' type String is not present");
         }
         if (StringUtils.isBlank(value)) {
             throw new NacosApiException(HttpStatus.BAD_REQUEST.value(), ErrorCode.PARAMETER_MISSING,
-                    "Required parameter 'value' type String is not present");
+                "Required parameter 'value' type String is not present");
         }
     }
     
-    public Boolean getDebug() {
+    public boolean getDebug() {
         return debug;
     }
     
-    public void setDebug(Boolean debug) {
+    public void setDebug(boolean debug) {
         this.debug = debug;
     }
     
@@ -92,7 +92,7 @@ public class UpdateSwitchForm implements Serializable {
         }
         UpdateSwitchForm that = (UpdateSwitchForm) o;
         return Objects.equals(debug, that.debug) && Objects.equals(entry, that.entry) && Objects
-                .equals(value, that.value);
+            .equals(value, that.value);
     }
     
     @Override
@@ -102,6 +102,7 @@ public class UpdateSwitchForm implements Serializable {
     
     @Override
     public String toString() {
-        return "UpdateSwitchForm{" + "debug=" + debug + ", entry='" + entry + '\'' + ", value='" + value + '\'' + '}';
+        return "UpdateSwitchForm{" + "debug=" + debug + ", entry='" + entry + '\'' + ", value='"
+            + value + '\'' + '}';
     }
 }

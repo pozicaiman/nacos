@@ -17,35 +17,38 @@
 package com.alibaba.nacos.api.naming.pojo;
 
 import com.alibaba.nacos.api.common.Constants;
+import com.alibaba.nacos.api.exception.api.NacosApiException;
 import com.alibaba.nacos.api.naming.PreservedMetadataKeys;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class InstanceTest {
+class InstanceTest {
     
     private static ObjectMapper mapper;
     
-    @BeforeClass
-    public static void setUp() throws Exception {
+    @BeforeAll
+    static void setUp() throws Exception {
         mapper = new ObjectMapper();
         mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
     
     @Test
-    public void testSetAndGet() {
+    void testSetAndGet() {
         Instance instance = new Instance();
         assertNull(instance.getInstanceId());
         assertNull(instance.getIp());
@@ -62,7 +65,7 @@ public class InstanceTest {
     }
     
     @Test
-    public void testJsonSerialize() throws JsonProcessingException {
+    void testJsonSerialize() throws JsonProcessingException {
         Instance instance = new Instance();
         setInstance(instance);
         String actual = mapper.writeValueAsString(instance);
@@ -82,8 +85,9 @@ public class InstanceTest {
     }
     
     @Test
-    public void testJsonDeserialize() throws JsonProcessingException {
-        String json = "{\"instanceId\":\"id\",\"ip\":\"1.1.1.1\",\"port\":1000,\"weight\":100.0,\"healthy\":false,"
+    void testJsonDeserialize() throws JsonProcessingException {
+        String json =
+            "{\"instanceId\":\"id\",\"ip\":\"1.1.1.1\",\"port\":1000,\"weight\":100.0,\"healthy\":false,"
                 + "\"enabled\":false,\"ephemeral\":false,\"clusterName\":\"cluster\","
                 + "\"serviceName\":\"group@@serviceName\",\"metadata\":{\"a\":\"b\"},\"instanceHeartBeatInterval\":5000,"
                 + "\"instanceHeartBeatTimeOut\":15000,\"ipDeleteTimeout\":30000}";
@@ -92,21 +96,21 @@ public class InstanceTest {
     }
     
     @Test
-    public void testCheckClusterNameFormat() {
+    void testCheckClusterNameFormat() {
         Instance instance = new Instance();
         instance.setClusterName("demo");
         assertEquals("demo", instance.getClusterName());
     }
     
     @Test
-    public void testToInetAddr() {
+    void testToInetAddr() {
         Instance instance = new Instance();
         setInstance(instance);
         assertEquals("1.1.1.1:1000", instance.toInetAddr());
     }
     
     @Test
-    public void testContainsMetadata() {
+    void testContainsMetadata() {
         Instance instance = new Instance();
         assertFalse(instance.containsMetadata("a"));
         instance.setMetadata(null);
@@ -116,7 +120,7 @@ public class InstanceTest {
     }
     
     @Test
-    public void testGetInstanceIdGenerator() {
+    void testGetInstanceIdGenerator() {
         Instance instance = new Instance();
         assertEquals(Constants.DEFAULT_INSTANCE_ID_GENERATOR, instance.getInstanceIdGenerator());
         instance.addMetadata(PreservedMetadataKeys.INSTANCE_ID_GENERATOR, "test");
@@ -124,19 +128,84 @@ public class InstanceTest {
     }
     
     @Test
-    public void testEquals() {
+    void testEquals() {
         Instance actual = new Instance();
         setInstance(actual);
         actual.setMetadata(new HashMap<>());
         actual.addMetadata("a", "b");
-        assertFalse(actual.equals(new Object()));
+        assertNotEquals(actual, new Object());
         Instance expected = new Instance();
         setInstance(expected);
         expected.setMetadata(new HashMap<>());
         expected.addMetadata("a", "b");
-        assertTrue(actual.equals(expected));
+        assertEquals(actual, expected);
         expected.addMetadata("a", "c");
-        assertFalse(actual.equals(expected));
+        assertNotEquals(actual, expected);
+    }
+    
+    @Test
+    void testValidateSuccess() throws Exception {
+        Instance instance = new Instance();
+        instance.setIp("1.1.1.1");
+        instance.setPort(8080);
+        
+        // 验证应该成功，不会抛出异常
+        instance.validate();
+    }
+    
+    @Test
+    void testValidateFailureWithEmptyIp() {
+        Instance instance = new Instance();
+        instance.setPort(8080);
+        
+        // IP为空，验证应该失败
+        assertThrows(NacosApiException.class, instance::validate);
+    }
+    
+    @Test
+    void testValidateFailureWithInvalidPort() {
+        Instance instance = new Instance();
+        instance.setIp("1.1.1.1");
+        instance.setPort(99999); // 无效端口 > 65535
+        
+        // 端口无效，验证应该失败
+        assertThrows(NacosApiException.class, instance::validate);
+        
+        Instance instance2 = new Instance();
+        instance2.setIp("1.1.1.1");
+        instance2.setPort(-1); // 无效端口 < 0
+        
+        // 端口无效，验证应该失败
+        assertThrows(NacosApiException.class, instance2::validate);
+    }
+    
+    @Test
+    void testFillDefaultValue() throws NacosApiException {
+        Instance instance = new Instance();
+        // 初始时 clusterName 为 null
+        assertNull(instance.getClusterName());
+        
+        // 调用私有方法 fillDefaultValue 是通过 validate 方法间接测试
+        instance.setIp("1.1.1.1");
+        instance.setPort(8080);
+        instance.validate();
+        
+        // clusterName 应该被设置为默认值
+        assertEquals(Constants.DEFAULT_CLUSTER_NAME, instance.getClusterName());
+    }
+    
+    @Test
+    void testFillDefaultValueWithExistingClusterName() throws NacosApiException {
+        Instance instance = new Instance();
+        instance.setClusterName("test-cluster");
+        instance.setIp("1.1.1.1");
+        instance.setPort(8080);
+        
+        // 调用 validate 会触发 fillDefaultValue
+        instance.validate();
+        
+        // clusterName 应该保持原值
+        assertEquals("test-cluster", instance.getClusterName());
     }
     
     private void setInstance(Instance instance) {

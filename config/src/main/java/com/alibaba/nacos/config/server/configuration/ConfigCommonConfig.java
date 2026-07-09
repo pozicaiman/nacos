@@ -33,6 +33,16 @@ public class ConfigCommonConfig extends AbstractDynamicConfig {
     
     private int maxPushRetryTimes = 50;
     
+    private long pushTimeout = 3000L;
+    
+    private int batchSize = 20;
+    
+    private boolean derbyOpsEnabled = false;
+    
+    private int maxPatternCount = 20;
+    
+    private int maxMatchedConfigCount = 500;
+    
     private ConfigCommonConfig() {
         super(CONFIG_COMMON);
         resetConfig();
@@ -50,13 +60,55 @@ public class ConfigCommonConfig extends AbstractDynamicConfig {
         this.maxPushRetryTimes = maxPushRetryTimes;
     }
     
+    public long getPushTimeout() {
+        return pushTimeout;
+    }
+    
+    public int getBatchSize() {
+        return batchSize;
+    }
+    
+    public boolean isDerbyOpsEnabled() {
+        return derbyOpsEnabled;
+    }
+    
+    public void setDerbyOpsEnabled(boolean derbyOpsEnabled) {
+        this.derbyOpsEnabled = derbyOpsEnabled;
+    }
+    
+    public int getMaxPatternCount() {
+        return maxPatternCount;
+    }
+    
+    public int getMaxMatchedConfigCount() {
+        return maxMatchedConfigCount;
+    }
+    
     @Override
     protected void getConfigFromEnv() {
-        maxPushRetryTimes = EnvUtil.getProperty("nacos.config.push.maxRetryTime", Integer.class, 50);
+        maxPushRetryTimes =
+            EnvUtil.getProperty("nacos.config.push.maxRetryTime", Integer.class, 50);
+        pushTimeout = EnvUtil.getProperty("nacos.config.push.timeout", Long.class, 3000L);
+        batchSize = EnvUtil.getProperty("nacos.config.push.batchSize", Integer.class, 20);
+        derbyOpsEnabled =
+            EnvUtil.getProperty("nacos.config.derby.ops.enabled", Boolean.class, false);
+        
+        maxPatternCount =
+            EnvUtil.getProperty("nacos.config.fuzzy.watch.max.pattern.count", Integer.class, 20);
+        maxMatchedConfigCount =
+            EnvUtil.getProperty("nacos.config.fuzzy.watch.max.pattern.match.config.count",
+                Integer.class, 500);
     }
     
     @Override
     protected String printConfig() {
-        return "ConfigCommonConfigs{" + "maxPushRetryTimes=" + maxPushRetryTimes + '}';
+        return toString();
+    }
+    
+    @Override
+    public String toString() {
+        return "ConfigCommonConfig{" + "maxPushRetryTimes=" + maxPushRetryTimes
+            + ", derbyOpsEnabled=" + derbyOpsEnabled
+            + '}';
     }
 }

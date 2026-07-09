@@ -28,7 +28,10 @@ request.middleWare((_config = {}) => {
   let config = _config;
   let { url = '' } = config;
 
-  const namespace = localStorage.getItem('namespace') ? localStorage.getItem('namespace') : '';
+  let namespace = config?.data?.namespaceId;
+  if (!namespace) {
+    namespace = localStorage.getItem('namespace') ? localStorage.getItem('namespace') : '';
+  }
   // 如果url中已经有 namespaceId, 不在data中添加namespaceId
   config.data =
     url.indexOf('namespaceId=') === -1
@@ -53,7 +56,7 @@ request.middleWare((_config = {}) => {
  * 配置 monaco
  */
 window.require.config({
-  paths: { vs: process.env.NODE_ENV === 'production' ? 'console-ui/public/js/vs' : 'js/vs' },
+  paths: { vs: process.env.NODE_ENV === 'production' ? '../console-ui/public/js/vs' : 'js/vs' },
 });
 window.require.config({
   'vs/nls': {

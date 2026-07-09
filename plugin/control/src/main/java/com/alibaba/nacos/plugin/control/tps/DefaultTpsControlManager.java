@@ -61,7 +61,9 @@ public class DefaultTpsControlManager extends TpsControlManager {
             }
         }
         Loggers.CONTROL
-                .warn("Tps point for {} registered, But tps control manager is no limit implementation.", pointName);
+            .warn(
+                "Tps point for {} registered, But tps control manager is no limit implementation.",
+                pointName);
     }
     
     /**
@@ -71,7 +73,7 @@ public class DefaultTpsControlManager extends TpsControlManager {
      * @param rule      rule.
      */
     public synchronized void applyTpsRule(String pointName, TpsControlRule rule) {
-        if (rule == null) {
+        if (rule == null || rule.getPointRule() == null) {
             rules.remove(pointName);
         } else {
             rules.put(pointName, rule);
@@ -79,8 +81,9 @@ public class DefaultTpsControlManager extends TpsControlManager {
         if (points.containsKey(pointName)) {
             points.get(pointName).applyRule(rule);
         }
-        Loggers.CONTROL.warn("Tps rule for point name {} updated, But tps control manager is no limit implementation.",
-                pointName);
+        Loggers.CONTROL.warn(
+            "Tps rule for point name {} updated, But tps control manager is no limit implementation.",
+            pointName);
     }
     
     public Map<String, TpsBarrier> getPoints() {

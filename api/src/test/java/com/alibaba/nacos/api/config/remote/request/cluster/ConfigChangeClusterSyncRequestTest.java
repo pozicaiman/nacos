@@ -19,20 +19,22 @@ package com.alibaba.nacos.api.config.remote.request.cluster;
 import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.config.remote.request.BasedConfigRequestTest;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ConfigChangeClusterSyncRequestTest extends BasedConfigRequestTest {
+class ConfigChangeClusterSyncRequestTest extends BasedConfigRequestTest {
+    
+    private static final String GRAY_NAME = "test-gray-name";
     
     ConfigChangeClusterSyncRequest configChangeClusterSyncRequest;
     
     String requestId;
     
-    @Before
-    public void before() {
+    @BeforeEach
+    void before() {
         configChangeClusterSyncRequest = new ConfigChangeClusterSyncRequest();
         configChangeClusterSyncRequest.setDataId(DATA_ID);
         configChangeClusterSyncRequest.setGroup(GROUP);
@@ -40,7 +42,7 @@ public class ConfigChangeClusterSyncRequestTest extends BasedConfigRequestTest {
         configChangeClusterSyncRequest.setTag(TAG);
         configChangeClusterSyncRequest.setBeta(Boolean.TRUE);
         configChangeClusterSyncRequest.setLastModified(0L);
-        configChangeClusterSyncRequest.setBatch(false);
+        configChangeClusterSyncRequest.setGrayName(GRAY_NAME);
         configChangeClusterSyncRequest.putAllHeader(HEADERS);
         requestId = injectRequestUuId(configChangeClusterSyncRequest);
     }
@@ -49,7 +51,6 @@ public class ConfigChangeClusterSyncRequestTest extends BasedConfigRequestTest {
     @Test
     public void testSerialize() throws JsonProcessingException {
         String json = mapper.writeValueAsString(configChangeClusterSyncRequest);
-        System.out.println(json);
         assertTrue(json.contains("\"module\":\"" + Constants.Config.CONFIG_MODULE));
         assertTrue(json.contains("\"dataId\":\"" + DATA_ID));
         assertTrue(json.contains("\"group\":\"" + GROUP));
@@ -58,21 +59,25 @@ public class ConfigChangeClusterSyncRequestTest extends BasedConfigRequestTest {
         assertTrue(json.contains("\"beta\":" + Boolean.TRUE));
         assertTrue(json.contains("\"requestId\":\"" + requestId));
         assertTrue(json.contains("\"lastModified\":" + 0));
+        assertTrue(json.contains("\"grayName\":\"" + GRAY_NAME));
         
     }
     
     @Override
     @Test
     public void testDeserialize() throws JsonProcessingException {
-        String json = "{\"headers\":{\"header1\":\"test_header1\"},\"requestId\":\"ece89111-3c42-4055-aca4-c95e16ec564b\",\"dataId\":\"test_data\","
+        String json =
+            "{\"headers\":{\"header1\":\"test_header1\"},\"requestId\":\"ece89111-3c42-4055-aca4-c95e16ec564b\",\"dataId\":\"test_data\","
                 + "\"group\":\"group\",\"tenant\":\"test_tenant\","
-                + "\"tag\":\"tag\",\"lastModified\":0,\"beta\":true,\"module\":\"config\"}";
-        ConfigChangeClusterSyncRequest actual = mapper.readValue(json, ConfigChangeClusterSyncRequest.class);
-        assertEquals(actual.getDataId(), DATA_ID);
-        assertEquals(actual.getGroup(), GROUP);
-        assertEquals(actual.getTenant(), TENANT);
-        assertEquals(actual.getModule(), Constants.Config.CONFIG_MODULE);
-        assertEquals(actual.getLastModified(), 0L);
+                + "\"tag\":\"tag\",\"lastModified\":0,\"beta\":true,\"grayName\":\"test-gray-name\",\"module\":\"config\"}";
+        ConfigChangeClusterSyncRequest actual =
+            mapper.readValue(json, ConfigChangeClusterSyncRequest.class);
+        assertEquals(DATA_ID, actual.getDataId());
+        assertEquals(GROUP, actual.getGroup());
+        assertEquals(TENANT, actual.getTenant());
+        assertEquals(Constants.Config.CONFIG_MODULE, actual.getModule());
+        assertEquals(0L, actual.getLastModified());
+        assertEquals(GRAY_NAME, actual.getGrayName());
         assertTrue(actual.isBeta());
     }
 }

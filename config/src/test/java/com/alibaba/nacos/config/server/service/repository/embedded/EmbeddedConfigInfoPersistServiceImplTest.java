@@ -16,6 +16,7 @@
 
 package com.alibaba.nacos.config.server.service.repository.embedded;
 
+import com.alibaba.nacos.api.config.ConfigType;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.common.utils.MD5Utils;
 import com.alibaba.nacos.common.utils.StringUtils;
@@ -26,31 +27,34 @@ import com.alibaba.nacos.config.server.model.ConfigInfo;
 import com.alibaba.nacos.config.server.model.ConfigInfoStateWrapper;
 import com.alibaba.nacos.config.server.model.ConfigInfoWrapper;
 import com.alibaba.nacos.config.server.model.ConfigOperateResult;
-import com.alibaba.nacos.config.server.model.SameConfigPolicy;
+import com.alibaba.nacos.api.config.model.SameConfigPolicy;
+import com.alibaba.nacos.config.server.exception.NacosConfigException;
 import com.alibaba.nacos.config.server.service.repository.HistoryConfigInfoPersistService;
+import com.alibaba.nacos.config.server.utils.ConfigExtInfoUtil;
 import com.alibaba.nacos.core.distributed.id.IdGeneratorManager;
 import com.alibaba.nacos.persistence.datasource.DataSourceService;
 import com.alibaba.nacos.persistence.datasource.DynamicDataSource;
-import com.alibaba.nacos.persistence.model.Page;
+import com.alibaba.nacos.api.model.Page;
 import com.alibaba.nacos.persistence.repository.embedded.EmbeddedStorageContextHolder;
 import com.alibaba.nacos.persistence.repository.embedded.operate.DatabaseOperate;
 import com.alibaba.nacos.sys.env.EnvUtil;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mock;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static com.alibaba.nacos.config.server.service.repository.ConfigRowMapperInjector.CONFIG_ADVANCE_INFO_ROW_MAPPER;
 import static com.alibaba.nacos.config.server.service.repository.ConfigRowMapperInjector.CONFIG_ALL_INFO_ROW_MAPPER;
@@ -58,10 +62,15 @@ import static com.alibaba.nacos.config.server.service.repository.ConfigRowMapper
 import static com.alibaba.nacos.config.server.service.repository.ConfigRowMapperInjector.CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER;
 import static com.alibaba.nacos.config.server.service.repository.ConfigRowMapperInjector.CONFIG_INFO_WRAPPER_ROW_MAPPER;
 import static com.alibaba.nacos.persistence.repository.RowMapperManager.MAP_ROW_MAPPER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -70,18 +79,10 @@ import static org.mockito.Mockito.when;
  *
  * @author shiyiyue
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-public class EmbeddedConfigInfoPersistServiceImplTest {
+@ExtendWith(SpringExtension.class)
+class EmbeddedConfigInfoPersistServiceImplTest {
     
-    private EmbeddedConfigInfoPersistServiceImpl embeddedConfigInfoPersistService;
-    
-    @Mock
-    private DataSourceService dataSourceService;
-    
-    @Mock
-    private HistoryConfigInfoPersistService historyConfigInfoPersistService;
-    
-    @Mock
+    @MockitoBean
     IdGeneratorManager idGeneratorManager;
     
     MockedStatic<EnvUtil> envUtilMockedStatic;
@@ -90,35 +91,46 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
     
     MockedStatic<DynamicDataSource> dynamicDataSourceMockedStatic;
     
-    @Mock
+    @MockitoBean
     DynamicDataSource dynamicDataSource;
     
-    @Mock
+    @MockitoBean
     DatabaseOperate databaseOperate;
     
-    @Before
-    public void before() {
-        embeddedStorageContextHolderMockedStatic = Mockito.mockStatic(EmbeddedStorageContextHolder.class);
+    private EmbeddedConfigInfoPersistServiceImpl embeddedConfigInfoPersistService;
+    
+    @MockitoBean
+    private DataSourceService dataSourceService;
+    
+    @MockitoBean
+    private HistoryConfigInfoPersistService historyConfigInfoPersistService;
+    
+    @BeforeEach
+    void before() {
+        embeddedStorageContextHolderMockedStatic =
+            Mockito.mockStatic(EmbeddedStorageContextHolder.class);
         dynamicDataSourceMockedStatic = Mockito.mockStatic(DynamicDataSource.class);
         envUtilMockedStatic = Mockito.mockStatic(EnvUtil.class);
         when(DynamicDataSource.getInstance()).thenReturn(dynamicDataSource);
         when(dynamicDataSource.getDataSource()).thenReturn(dataSourceService);
         when(dataSourceService.getDataSourceType()).thenReturn("derby");
-        envUtilMockedStatic.when(() -> EnvUtil.getProperty(anyString(), eq(Boolean.class), eq(false)))
-                .thenReturn(false);
-        embeddedConfigInfoPersistService = new EmbeddedConfigInfoPersistServiceImpl(databaseOperate, idGeneratorManager,
+        envUtilMockedStatic
+            .when(() -> EnvUtil.getProperty(anyString(), eq(Boolean.class), eq(false)))
+            .thenReturn(false);
+        embeddedConfigInfoPersistService =
+            new EmbeddedConfigInfoPersistServiceImpl(databaseOperate, idGeneratorManager,
                 historyConfigInfoPersistService);
     }
     
-    @After
-    public void after() {
+    @AfterEach
+    void after() {
         dynamicDataSourceMockedStatic.close();
         envUtilMockedStatic.close();
         embeddedStorageContextHolderMockedStatic.close();
     }
     
     @Test
-    public void testInsertOrUpdateOfInsertConfigSuccess() {
+    void testInsertOrUpdateOfInsertConfigSuccess() {
         
         String dataId = "dataId";
         String group = "group";
@@ -147,43 +159,56 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configInfoStateWrapperFinalSelect.setLastModified(System.currentTimeMillis());
         //mock get config state
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(null, configInfoStateWrapperFinalSelect);
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null, configInfoStateWrapperFinalSelect);
+        Mockito.when(databaseOperate.blockUpdate(any())).thenReturn(true);
         
         String srcIp = "srcIp";
         String srcUser = "srcUser";
         //mock insert config info
         Mockito.doNothing().when(historyConfigInfoPersistService)
-                .insertConfigHistoryAtomic(eq(0), eq(configInfo), eq(srcIp), eq(srcUser), any(Timestamp.class),
-                        eq("I"));
+            .insertConfigHistoryAtomic(eq(0), eq(configInfo), eq(srcIp), eq(srcUser),
+                any(Timestamp.class), eq("I"),
+                eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtraInfoFromAdvanceInfoMap(configAdvanceInfo, srcUser)));
         
-        ConfigOperateResult configOperateResult = embeddedConfigInfoPersistService.insertOrUpdate(srcIp, srcUser,
+        ConfigOperateResult configOperateResult =
+            embeddedConfigInfoPersistService.insertOrUpdate(srcIp, srcUser,
                 configInfo, configAdvanceInfo);
-        Assert.assertEquals(configInfoStateWrapperFinalSelect.getId(), configOperateResult.getId());
-        Assert.assertEquals(configInfoStateWrapperFinalSelect.getLastModified(), configOperateResult.getLastModified());
+        assertEquals(configInfoStateWrapperFinalSelect.getId(), configOperateResult.getId());
+        assertEquals(configInfoStateWrapperFinalSelect.getLastModified(),
+            configOperateResult.getLastModified());
         
         //expect insert config info invoked.
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq(dataId), eq(group),
-                        eq(tenant), eq(appName), eq(content), eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)),
-                        eq(srcIp), eq(srcUser), any(Timestamp.class), any(Timestamp.class), eq(desc), eq(use),
-                        eq(effect), eq(type), eq(schema), eq(encryptedDataKey)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq(dataId),
+                eq(group),
+                eq(tenant), eq(appName), eq(content),
+                eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)),
+                eq(srcIp), eq(srcUser), eq(desc), eq(use), eq(effect), eq(type), eq(schema),
+                eq(encryptedDataKey)),
+            times(1));
         //expect insert config tags
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         
         //expect insert history info
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(0L), eq(configInfo), eq(srcIp), eq(srcUser), any(Timestamp.class),
-                        eq("I"));
+            .insertConfigHistoryAtomic(eq(0L), eq(configInfo), eq(srcIp), eq(srcUser),
+                any(Timestamp.class),
+                eq("I"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtraInfoFromAdvanceInfoMap(configAdvanceInfo, srcUser)));
         
     }
     
     @Test
-    public void testInsertOrUpdateCasOfInsertConfigSuccess() {
+    void testInsertOrUpdateCasOfInsertConfigSuccess() {
         
         Map<String, Object> configAdvanceInfo = new HashMap<>();
         String desc = "testdesc";
@@ -212,35 +237,64 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configInfoStateWrapperFinalSelect.setLastModified(System.currentTimeMillis());
         //mock get config state
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(null, configInfoStateWrapperFinalSelect);
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null, configInfoStateWrapperFinalSelect);
+        Mockito.when(databaseOperate.blockUpdate(any())).thenReturn(true);
         String srcIp = "iptest";
         String srcUser = "users";
-        ConfigOperateResult configOperateResult = embeddedConfigInfoPersistService.insertOrUpdateCas(srcIp, srcUser,
+        ConfigOperateResult configOperateResult =
+            embeddedConfigInfoPersistService.insertOrUpdateCas(srcIp, srcUser,
                 configInfo, configAdvanceInfo);
-        Assert.assertEquals(configInfoStateWrapperFinalSelect.getId(), configOperateResult.getId());
-        Assert.assertEquals(configInfoStateWrapperFinalSelect.getLastModified(), configOperateResult.getLastModified());
+        assertEquals(configInfoStateWrapperFinalSelect.getId(), configOperateResult.getId());
+        assertEquals(configInfoStateWrapperFinalSelect.getLastModified(),
+            configOperateResult.getLastModified());
         //expect insert config info invoked.
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq(dataId), eq(group),
-                        eq(tenant), eq(appName), eq(content), eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)),
-                        eq(srcIp), eq(srcUser), any(Timestamp.class), any(Timestamp.class), eq(desc), eq(use),
-                        eq(effect), eq(type), eq(schema), eq(encryptedDatakey)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq(dataId),
+                eq(group),
+                eq(tenant), eq(appName), eq(content),
+                eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)),
+                eq(srcIp), eq(srcUser), eq(desc), eq(use), eq(effect), eq(type), eq(schema),
+                eq(encryptedDatakey)),
+            times(1));
         //expect insert config tags
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         
         //expect insert history info
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(0L), eq(configInfo), eq(srcIp), eq(srcUser), any(Timestamp.class),
-                        eq("I"));
+            .insertConfigHistoryAtomic(eq(0L), eq(configInfo), eq(srcIp), eq(srcUser),
+                any(Timestamp.class),
+                eq("I"), eq("formal"), eq(null), argThat(actualJson -> {
+                    String expected =
+                        ConfigExtInfoUtil.getExtraInfoFromAdvanceInfoMap(configAdvanceInfo,
+                            srcUser);
+                    if (expected == null || actualJson == null) {
+                        return expected == actualJson;
+                    }
+                    String[] expectedParts = expected.replaceAll("[{}\"]", "").split(",");
+                    String[] actualParts = actualJson.replaceAll("[{}\"]", "").split(",");
+                    List<String> expectedList = new ArrayList<>();
+                    List<String> actualList = new ArrayList<>();
+                    for (String part : expectedParts) {
+                        expectedList.add(part.trim());
+                    }
+                    for (String part : actualParts) {
+                        actualList.add(part.trim());
+                    }
+                    return expectedList.size() == actualList.size()
+                        && actualList.containsAll(expectedList);
+                }));
     }
     
     @Test
-    public void testInsertOrUpdateOfUpdateConfigSuccess() {
+    void testInsertOrUpdateOfUpdateConfigSuccess() {
         
         Map<String, Object> configAdvanceInfo = new HashMap<>();
         String desc = "testdesc";
@@ -265,47 +319,55 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configInfo.setEncryptedDataKey(encryptedDataKey);
         //mock get config state,first and second is not null
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                        eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(new ConfigInfoStateWrapper(), new ConfigInfoStateWrapper());
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(new ConfigInfoStateWrapper(), new ConfigInfoStateWrapper());
         
         //mock select config info before update
-        ConfigInfoWrapper configInfoWrapperOld = new ConfigInfoWrapper();
-        configInfoWrapperOld.setDataId(dataId);
-        configInfoWrapperOld.setGroup(group);
-        configInfoWrapperOld.setTenant(tenant);
-        configInfoWrapperOld.setAppName("old_app");
-        configInfoWrapperOld.setMd5("old_md5");
-        configInfoWrapperOld.setId(12345678765L);
+        ConfigAllInfo configAllInfo = new ConfigAllInfo();
+        configAllInfo.setDataId(dataId);
+        configAllInfo.setGroup(group);
+        configAllInfo.setTenant(tenant);
+        configAllInfo.setAppName("old_app");
+        configAllInfo.setMd5("old_md5");
+        configAllInfo.setId(12345678765L);
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(configInfoWrapperOld);
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(configAllInfo);
         String srcIp = "srcIp";
         String srcUser = "srcUser";
-        embeddedConfigInfoPersistService.insertOrUpdate(srcIp, srcUser, configInfo, configAdvanceInfo);
+        embeddedConfigInfoPersistService.insertOrUpdate(srcIp, srcUser, configInfo,
+            configAdvanceInfo);
         
         //expect update config info invoked.
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(content),
-                        eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)), eq(srcIp), eq(srcUser),
-                        any(Timestamp.class), eq(appName), eq(desc), eq(use), eq(effect), eq(type), eq(schema),
-                        eq(encryptedDataKey), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(content),
+                eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)), eq(srcIp), eq(srcUser),
+                eq(appName),
+                eq(desc), eq(use), eq(effect), eq(type), eq(schema), eq(encryptedDataKey),
+                eq(dataId),
+                eq(group), eq(tenant)),
+            times(1));
         
         //expect insert config tags
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         
         //expect insert history info of U
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(configInfoWrapperOld.getId()), any(ConfigInfo.class), eq(srcIp),
-                        eq(srcUser), any(Timestamp.class), eq("U"));
+            .insertConfigHistoryAtomic(eq(configAllInfo.getId()), any(ConfigInfo.class), eq(srcIp),
+                eq(srcUser),
+                any(Timestamp.class), eq("U"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtInfoFromAllInfo(configAllInfo)));
         
     }
     
     @Test
-    public void testInsertOrUpdateCasOfUpdateConfigSuccess() {
+    void testInsertOrUpdateCasOfUpdateConfigSuccess() {
         
         Map<String, Object> configAdvanceInfo = new HashMap<>();
         String desc = "testdesc11";
@@ -332,63 +394,208 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //mock get config state,first and second is not null
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                        eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(new ConfigInfoStateWrapper(), new ConfigInfoStateWrapper());
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(new ConfigInfoStateWrapper(), new ConfigInfoStateWrapper());
         
         //mock select config info before update
-        ConfigInfoWrapper configInfoWrapperOld = new ConfigInfoWrapper();
-        configInfoWrapperOld.setDataId(dataId);
-        configInfoWrapperOld.setGroup(group);
-        configInfoWrapperOld.setTenant(tenant);
-        configInfoWrapperOld.setAppName("old_app11");
-        configInfoWrapperOld.setMd5("old_md5");
-        configInfoWrapperOld.setId(123456799L);
+        ConfigAllInfo configAllInfo = new ConfigAllInfo();
+        configAllInfo.setDataId(dataId);
+        configAllInfo.setGroup(group);
+        configAllInfo.setTenant(tenant);
+        configAllInfo.setAppName("old_app");
+        configAllInfo.setMd5("old_md5");
+        configAllInfo.setId(12345678765L);
+        
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(configInfoWrapperOld);
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(configAllInfo);
         String srcIp = "srcIp";
         String srcUser = "srcUser";
         
-        embeddedConfigInfoPersistService.insertOrUpdateCas(srcIp, srcUser, configInfo, configAdvanceInfo);
+        embeddedConfigInfoPersistService.insertOrUpdateCas(srcIp, srcUser, configInfo,
+            configAdvanceInfo);
         //expect update config info invoked.
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(content),
-                        eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)), eq(srcIp), eq(srcUser),
-                        any(Timestamp.class), eq(appName), eq(desc), eq(use), eq(effect), eq(type), eq(schema),
-                        eq(encryptedDataKey), eq(dataId), eq(group), eq(tenant), eq(casMd5)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(eq(Boolean.TRUE), anyString(),
+                eq(content),
+                eq(MD5Utils.md5Hex(content, Constants.PERSIST_ENCODE)), eq(srcIp), eq(srcUser),
+                eq(appName),
+                eq(desc), eq(use), eq(effect), eq(type), eq(schema), eq(encryptedDataKey),
+                eq(dataId),
+                eq(group), eq(tenant), eq(casMd5)),
+            times(1));
         
         //expect insert config tags
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag1"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
-                        eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), anyLong(), eq("tag2"),
+                eq(StringUtils.EMPTY), eq(dataId), eq(group), eq(tenant)),
+            times(1));
         
         //expect insert history info of U
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(configInfoWrapperOld.getId()), any(ConfigInfo.class), eq(srcIp),
-                        eq(srcUser), any(Timestamp.class), eq("U"));
+            .insertConfigHistoryAtomic(eq(configAllInfo.getId()), any(ConfigInfo.class), eq(srcIp),
+                eq(srcUser),
+                any(Timestamp.class), eq("U"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtInfoFromAllInfo(configAllInfo)));
         
     }
     
     @Test
-    public void testRemoveConfigInfo() {
+    void testUpdateConfigInfoReturnsFalseWhenOldConfigMissing() {
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(null);
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfo(
+            new ConfigInfo("dataId", "group", "", null, "content"), "srcIp", "srcUser", null);
+        
+        assertTrue(!result.isSuccess());
+    }
+    
+    @Test
+    void testUpdateConfigInfoWithNullTenantAndTagsReturnsLastState() {
+        ConfigInfo configInfo = new ConfigInfo("dataId", "group", null, null, "content");
+        ConfigAllInfo oldConfig = createMockConfigAllInfo(1);
+        oldConfig.setId(100L);
+        oldConfig.setDataId("dataId");
+        oldConfig.setGroup("group");
+        oldConfig.setTenant(StringUtils.EMPTY);
+        oldConfig.setAppName("oldApp");
+        ConfigInfoStateWrapper state = new ConfigInfoStateWrapper();
+        state.setId(100L);
+        state.setLastModified(123L);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(oldConfig);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(state);
+        Mockito.when(databaseOperate.blockUpdate()).thenReturn(true);
+        Map<String, Object> advanceInfo = new HashMap<>();
+        advanceInfo.put("config_tags", "tag1,tag2");
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfo(
+            configInfo, "srcIp", "srcUser", advanceInfo);
+        
+        assertTrue(result.isSuccess());
+        assertEquals(100L, result.getId());
+        assertEquals(123L, result.getLastModified());
+    }
+    
+    @Test
+    void testUpdateConfigInfoCasReturnsFalseWhenOldConfigMissing() {
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(null);
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfoCas(
+            new ConfigInfo("dataId", "group", "", null, "content"), "srcIp", "srcUser", null);
+        
+        assertTrue(!result.isSuccess());
+    }
+    
+    @Test
+    void testUpdateConfigInfoReturnsFalseWhenUpdatedStateMissing() {
+        ConfigInfo configInfo = new ConfigInfo("dataId", "group", "", null, "content");
+        ConfigAllInfo oldConfig = createMockConfigAllInfo(1);
+        oldConfig.setId(100L);
+        oldConfig.setDataId("dataId");
+        oldConfig.setGroup("group");
+        oldConfig.setTenant(StringUtils.EMPTY);
+        oldConfig.setAppName("oldApp");
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(oldConfig);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(null);
+        Mockito.when(databaseOperate.blockUpdate()).thenReturn(true);
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfo(configInfo,
+            "srcIp", "srcUser", null);
+        
+        assertTrue(!result.isSuccess());
+    }
+    
+    @Test
+    void testUpdateConfigInfoCasReturnsFalseWhenBlockUpdateFails() {
+        ConfigInfo configInfo = new ConfigInfo("dataId", "group", null, null, "content");
+        ConfigAllInfo oldConfig = createMockConfigAllInfo(1);
+        oldConfig.setId(100L);
+        oldConfig.setDataId("dataId");
+        oldConfig.setGroup("group");
+        oldConfig.setTenant(StringUtils.EMPTY);
+        oldConfig.setAppName("oldApp");
+        ConfigInfoStateWrapper state = new ConfigInfoStateWrapper();
+        state.setId(100L);
+        state.setLastModified(123L);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(oldConfig);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(state);
+        Mockito.when(databaseOperate.blockUpdate()).thenReturn(false);
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfoCas(
+            configInfo, "srcIp", "srcUser", null);
+        
+        assertTrue(!result.isSuccess());
+    }
+    
+    @Test
+    void testUpdateConfigInfoCasReturnsLastState() {
+        ConfigInfo configInfo = new ConfigInfo("dataId", "group", null, null, "content");
+        ConfigAllInfo oldConfig = createMockConfigAllInfo(1);
+        oldConfig.setId(100L);
+        oldConfig.setDataId("dataId");
+        oldConfig.setGroup("group");
+        oldConfig.setTenant(StringUtils.EMPTY);
+        oldConfig.setAppName("oldApp");
+        ConfigInfoStateWrapper state = new ConfigInfoStateWrapper();
+        state.setId(101L);
+        state.setLastModified(234L);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(oldConfig);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(state);
+        Mockito.when(databaseOperate.blockUpdate()).thenReturn(true);
+        
+        ConfigOperateResult result = embeddedConfigInfoPersistService.updateConfigInfoCas(
+            configInfo, "srcIp", "srcUser", null);
+        
+        assertTrue(result.isSuccess());
+        assertEquals(101L, result.getId());
+        assertEquals(234L, result.getLastModified());
+    }
+    
+    @Test
+    void testRemoveConfigInfo() {
         String dataId = "dataId4567";
         String group = "group3456789";
         String tenant = "tenant4567890";
         
         //mock exist config info
-        ConfigInfoWrapper configInfoWrapperOld = new ConfigInfoWrapper();
-        configInfoWrapperOld.setDataId(dataId);
-        configInfoWrapperOld.setGroup(group);
-        configInfoWrapperOld.setTenant(tenant);
-        configInfoWrapperOld.setAppName("old_app");
-        configInfoWrapperOld.setContent("old content");
-        configInfoWrapperOld.setMd5("old_md5");
-        configInfoWrapperOld.setId(12345678765L);
-        configInfoWrapperOld.setEncryptedDataKey("key3456");
+        ConfigAllInfo configAllInfo = new ConfigAllInfo();
+        configAllInfo.setDataId(dataId);
+        configAllInfo.setGroup(group);
+        configAllInfo.setTenant(tenant);
+        configAllInfo.setAppName("old_app");
+        configAllInfo.setMd5("old_md5");
+        configAllInfo.setId(12345678765L);
+        configAllInfo.setType(ConfigType.JSON.getType());
+        configAllInfo.setSchema("testschema");
+        configAllInfo.setCreateUser("testuser");
+        configAllInfo.setEffect("online");
+        configAllInfo.setDesc("desc");
+        configAllInfo.setUse("use124");
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(configInfoWrapperOld);
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(configAllInfo);
         String srcIp = "srcIp1234";
         String srcUser = "srcUser";
         Mockito.when(databaseOperate.update(any())).thenReturn(true);
@@ -396,31 +603,47 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //expect delete config to be invoked
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(dataId), eq(group), eq(tenant)),
-                times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(dataId), eq(group),
+                eq(tenant)),
+            times(1));
         //expect delete config tag to be invoked
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(configInfoWrapperOld.getId())),
-                times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(),
+                eq(configAllInfo.getId())),
+            times(1));
         //expect insert delete history
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(configInfoWrapperOld.getId()), eq(configInfoWrapperOld), eq(srcIp),
-                        eq(srcUser), any(), eq("D"));
+            .insertConfigHistoryAtomic(eq(configAllInfo.getId()), eq(configAllInfo), eq(srcIp),
+                eq(srcUser), any(),
+                eq("D"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtInfoFromAllInfo(configAllInfo)));
         
     }
     
     @Test
-    public void testRemoveConfigInfoByIds() {
+    void testRemoveConfigInfoByIds() {
         
         //mock exist config info
-        List<ConfigInfo> configInfos = new ArrayList<>();
-        configInfos.add(new ConfigInfo("data1", "group", "tenant", "app", "content"));
-        configInfos.add(new ConfigInfo("data2", "grou2", "tenan2", "app2", "content2"));
+        final List<ConfigAllInfo> configAllInfos = new ArrayList<>();
+        final ConfigAllInfo configAllInfo1 = new ConfigAllInfo();
+        final ConfigAllInfo configAllInfo2 = new ConfigAllInfo();
+        configAllInfo1.setDataId("dataId1");
+        configAllInfo1.setGroup("group1");
+        configAllInfo1.setTenant("tenant1");
+        configAllInfo1.setAppName("app1");
+        configAllInfo2.setDataId("dataId2");
+        configAllInfo2.setGroup("group2");
+        configAllInfo2.setTenant("tenant2");
+        configAllInfo2.setAppName("app2");
+        configAllInfos.add(configAllInfo1);
+        configAllInfos.add(configAllInfo2);
         List<Long> deleteIds = Arrays.asList(12344L, 3456789L);
-        configInfos.get(0).setId(12344L);
-        configInfos.get(1).setId(3456789L);
-        Mockito.when(databaseOperate.queryMany(anyString(), eq(deleteIds.toArray()), eq(CONFIG_INFO_ROW_MAPPER)))
-                .thenReturn(configInfos);
+        configAllInfos.get(0).setId(12344L);
+        configAllInfos.get(1).setId(3456789L);
+        Mockito
+            .when(databaseOperate.queryMany(anyString(), eq(deleteIds.toArray()),
+                eq(CONFIG_ALL_INFO_ROW_MAPPER)))
+            .thenReturn(configAllInfos);
         String srcIp = "srcIp1234";
         String srcUser = "srcUser";
         Mockito.when(databaseOperate.update(any())).thenReturn(true);
@@ -431,24 +654,76 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //expect delete config to be invoked
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId0), eq(deleteId1)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId0),
+                eq(deleteId1)),
+            times(1));
         //expect delete config tag to be invoked
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId0)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId0)), times(1));
         embeddedStorageContextHolderMockedStatic.verify(
-                () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId1)), times(1));
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(deleteId1)), times(1));
         //expect insert delete history
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(configInfos.get(0).getId()), eq(configInfos.get(0)), eq(srcIp),
-                        eq(srcUser), any(), eq("D"));
+            .insertConfigHistoryAtomic(eq(configAllInfos.get(0).getId()), eq(configAllInfos.get(0)),
+                eq(srcIp),
+                eq(srcUser), any(), eq("D"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtInfoFromAllInfo(configAllInfos.get(0))));
         Mockito.verify(historyConfigInfoPersistService, times(1))
-                .insertConfigHistoryAtomic(eq(configInfos.get(1).getId()), eq(configInfos.get(1)), eq(srcIp),
-                        eq(srcUser), any(), eq("D"));
+            .insertConfigHistoryAtomic(eq(configAllInfos.get(1).getId()), eq(configAllInfos.get(1)),
+                eq(srcIp),
+                eq(srcUser), any(), eq("D"), eq("formal"), eq(null),
+                eq(ConfigExtInfoUtil.getExtInfoFromAllInfo(configAllInfos.get(1))));
         
     }
     
     @Test
-    public void testBatchInsertOrUpdateOverwrite() throws NacosException {
+    void testRemoveConfigInfoThrowsWhenUpdateFails() {
+        String dataId = "dataIdFailedDelete";
+        String group = "groupFailedDelete";
+        String tenant = "tenantFailedDelete";
+        ConfigAllInfo configAllInfo = new ConfigAllInfo();
+        configAllInfo.setId(123L);
+        configAllInfo.setDataId(dataId);
+        configAllInfo.setGroup(group);
+        configAllInfo.setTenant(tenant);
+        Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(configAllInfo);
+        Mockito.when(databaseOperate.update(any())).thenReturn(false);
+        
+        assertThrows(NacosConfigException.class,
+            () -> embeddedConfigInfoPersistService.removeConfigInfo(dataId, group, tenant, "srcIp",
+                "srcUser"));
+    }
+    
+    @Test
+    void testRemoveConfigInfoByIdsReturnsNullWhenIdsEmpty() {
+        assertTrue(embeddedConfigInfoPersistService.removeConfigInfoByIds(
+            new ArrayList<>(), "srcIp", "srcUser") == null);
+    }
+    
+    @Test
+    void testRemoveConfigInfoByIdsThrowsWhenUpdateFails() {
+        List<Long> deleteIds = new ArrayList<>(Collections.singletonList(123L));
+        ConfigAllInfo configAllInfo = createMockConfigAllInfo(1);
+        configAllInfo.setId(123L);
+        Mockito.when(databaseOperate.queryMany(anyString(), eq(deleteIds.toArray()),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(Collections.singletonList(configAllInfo));
+        Mockito.when(databaseOperate.update(any())).thenReturn(false);
+        
+        assertThrows(NacosConfigException.class,
+            () -> embeddedConfigInfoPersistService.removeConfigInfoByIds(deleteIds, "srcIp",
+                "srcUser"));
+    }
+    
+    @Test
+    void testRemoveConfigInfoByIdsAtomicSkipsBlankIds() {
+        embeddedConfigInfoPersistService.removeConfigInfoByIdsAtomic("");
+        
+        embeddedStorageContextHolderMockedStatic.verifyNoInteractions();
+    }
+    
+    @Test
+    void testBatchInsertOrUpdateOverwrite() throws NacosException {
         List<ConfigAllInfo> configInfoList = new ArrayList<>();
         //insert direct
         configInfoList.add(createMockConfigAllInfo(0));
@@ -462,32 +737,37 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //mock add config 1 success,config 2 fail and skip,config 3 success
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
-                                configInfoList.get(0).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
+                configInfoList.get(0).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(new ConfigInfoStateWrapper());
+            eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(new ConfigInfoStateWrapper());
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         //mock query config info during update
         ConfigInfoWrapper configInfoWrapper = new ConfigInfoWrapper();
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_WRAPPER_ROW_MAPPER)))
-                .thenReturn(configInfoWrapper);
+            eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER)))
+            .thenReturn(configInfoWrapper);
         
-        Map<String, Object> stringObjectMap = embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
+        Map<String, Object> stringObjectMap =
+            embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
                 srcUser, srcIp, configAdvanceInfo, SameConfigPolicy.OVERWRITE);
-        Assert.assertEquals(3, stringObjectMap.get("succCount"));
-        Assert.assertEquals(0, stringObjectMap.get("skipCount"));
+        assertEquals(3, stringObjectMap.get("succCount"));
+        assertEquals(0, stringObjectMap.get("skipCount"));
     }
     
     @Test
-    public void testBatchInsertOrUpdateSkip() throws NacosException {
+    void testBatchInsertOrUpdateSkip() throws NacosException {
         List<ConfigAllInfo> configInfoList = new ArrayList<>();
         //insert direct
         configInfoList.add(createMockConfigAllInfo(0));
@@ -501,28 +781,32 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //mock add config 1 success,config 2 fail and skip,config 3 success
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
-                                configInfoList.get(0).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
+                configInfoList.get(0).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(new ConfigInfoStateWrapper());
+            eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(new ConfigInfoStateWrapper());
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         
-        Map<String, Object> stringObjectMap = embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
+        Map<String, Object> stringObjectMap =
+            embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
                 srcUser, srcIp, configAdvanceInfo, SameConfigPolicy.SKIP);
-        Assert.assertEquals(2, stringObjectMap.get("succCount"));
-        Assert.assertEquals(1, stringObjectMap.get("skipCount"));
-        Assert.assertEquals(configInfoList.get(1).getDataId(),
-                ((List<Map<String, String>>) stringObjectMap.get("skipData")).get(0).get("dataId"));
+        assertEquals(2, stringObjectMap.get("succCount"));
+        assertEquals(1, stringObjectMap.get("skipCount"));
+        assertEquals(configInfoList.get(1).getDataId(),
+            ((List<Map<String, String>>) stringObjectMap.get("skipData")).get(0).get("dataId"));
     }
     
     @Test
-    public void testBatchInsertOrUpdateAbort() throws NacosException {
+    void testBatchInsertOrUpdateAbort() throws NacosException {
         List<ConfigAllInfo> configInfoList = new ArrayList<>();
         //insert direct
         configInfoList.add(createMockConfigAllInfo(0));
@@ -536,28 +820,84 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         
         //mock add config 1 success,config 2 fail and abort,config 3 not operated
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
-                                configInfoList.get(0).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(0).getDataId(), configInfoList.get(0).getGroup(),
+                configInfoList.get(0).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(new ConfigInfoStateWrapper());
+            eq(new Object[] {configInfoList.get(1).getDataId(), configInfoList.get(1).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(new ConfigInfoStateWrapper());
         Mockito.when(databaseOperate.queryOne(anyString(),
-                        eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
-                                configInfoList.get(1).getTenant()}), eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
-                .thenReturn(null);
+            eq(new Object[] {configInfoList.get(2).getDataId(), configInfoList.get(2).getGroup(),
+                configInfoList.get(1).getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(null);
         
-        Map<String, Object> stringObjectMap = embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
+        Map<String, Object> stringObjectMap =
+            embeddedConfigInfoPersistService.batchInsertOrUpdate(configInfoList,
                 srcUser, srcIp, configAdvanceInfo, SameConfigPolicy.ABORT);
-        Assert.assertEquals(1, stringObjectMap.get("succCount"));
-        Assert.assertEquals(1, stringObjectMap.get("skipCount"));
+        assertEquals(1, stringObjectMap.get("succCount"));
+        assertEquals(1, stringObjectMap.get("skipCount"));
         // config 2 failed
-        Assert.assertEquals(configInfoList.get(1).getDataId(),
-                ((List<Map<String, String>>) stringObjectMap.get("failData")).get(0).get("dataId"));
+        assertEquals(configInfoList.get(1).getDataId(),
+            ((List<Map<String, String>>) stringObjectMap.get("failData")).get(0).get("dataId"));
         //skip config 3
-        Assert.assertEquals(configInfoList.get(2).getDataId(),
-                ((List<Map<String, String>>) stringObjectMap.get("skipData")).get(0).get("dataId"));
+        assertEquals(configInfoList.get(2).getDataId(),
+            ((List<Map<String, String>>) stringObjectMap.get("skipData")).get(0).get("dataId"));
+    }
+    
+    @Test
+    void testBatchInsertOrUpdateWithNullAdvanceInfoAndDefaultType() throws NacosException {
+        ConfigAllInfo configInfo = createMockConfigAllInfo(0);
+        configInfo.setDataId("plainDataId");
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {configInfo.getDataId(), configInfo.getGroup(),
+                configInfo.getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(null);
+        Mockito.doAnswer(invocation -> {
+            BiConsumer<Boolean, Throwable> consumer = invocation.getArgument(0);
+            consumer.accept(true, null);
+            return true;
+        }).when(databaseOperate).blockUpdate(Mockito.<BiConsumer<Boolean, Throwable>>any());
+        
+        Map<String, Object> result = embeddedConfigInfoPersistService.batchInsertOrUpdate(
+            Collections.singletonList(configInfo), "srcUser", "srcIp", null,
+            SameConfigPolicy.SKIP);
+        
+        assertEquals(1, result.get("succCount"));
+        assertEquals(0, result.get("skipCount"));
+    }
+    
+    @Test
+    void testBatchInsertOrUpdateRethrowsInvalidConfig() {
+        ConfigAllInfo configInfo = createMockConfigAllInfo(0);
+        configInfo.setDataId("");
+        
+        assertThrows(NacosException.class,
+            () -> embeddedConfigInfoPersistService.batchInsertOrUpdate(
+                Collections.singletonList(configInfo), "srcUser", "srcIp", new HashMap<>(),
+                SameConfigPolicy.SKIP));
+    }
+    
+    @Test
+    void testBatchInsertOrUpdateRethrowsCallbackException() {
+        ConfigAllInfo configInfo = createMockConfigAllInfo(0);
+        Mockito.when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {configInfo.getDataId(), configInfo.getGroup(),
+                configInfo.getTenant()}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(null);
+        Mockito.doAnswer(invocation -> {
+            BiConsumer<Boolean, Throwable> consumer = invocation.getArgument(0);
+            consumer.accept(false, new RuntimeException("block failed"));
+            return false;
+        }).when(databaseOperate).blockUpdate(Mockito.<BiConsumer<Boolean, Throwable>>any());
+        
+        assertThrows(NacosException.class,
+            () -> embeddedConfigInfoPersistService.batchInsertOrUpdate(
+                Collections.singletonList(configInfo), "srcUser", "srcIp", new HashMap<>(),
+                SameConfigPolicy.SKIP));
     }
     
     private ConfigAllInfo createMockConfigAllInfo(long mockId) {
@@ -597,34 +937,59 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
     }
     
     @Test
-    public void testFindConfigMaxId() {
+    void testGenerateLikeArgumentEscapesUnderscore() {
+        assertEquals("data\\_id%", embeddedConfigInfoPersistService.generateLikeArgument(
+            "data_id*"));
+    }
+    
+    @Test
+    void testAddConfigInfoAtomicWithNullAdvanceInfoAndEncryptedKey() {
+        ConfigInfo configInfo = new ConfigInfo("dataId", "group", null, null, "content");
+        
+        long id = embeddedConfigInfoPersistService.addConfigInfoAtomic(7L, "srcIp", "srcUser",
+            configInfo, null);
+        
+        assertEquals(7L, id);
+        embeddedStorageContextHolderMockedStatic.verify(
+            () -> EmbeddedStorageContextHolder.addSqlContext(anyString(), eq(7L), eq("dataId"),
+                eq("group"), eq(StringUtils.EMPTY), eq(StringUtils.EMPTY), eq("content"),
+                eq(MD5Utils.md5Hex("content", Constants.PERSIST_ENCODE)), eq("srcIp"),
+                eq("srcUser"), eq(null), eq(null), eq(null), eq(null), eq(null),
+                eq(StringUtils.EMPTY)),
+            times(1));
+    }
+    
+    @Test
+    void testFindConfigMaxId() {
         
         Mockito.when(databaseOperate.queryOne(anyString(), eq(Long.class))).thenReturn(123456L);
         long configMaxId = embeddedConfigInfoPersistService.findConfigMaxId();
-        Assert.assertEquals(123456L, configMaxId);
+        assertEquals(123456L, configMaxId);
     }
     
     @Test
-    public void testFindConfigMaxId0() {
+    void testFindConfigMaxId0() {
         
         Mockito.when(databaseOperate.queryOne(anyString(), eq(Long.class))).thenReturn(0L);
         long configMaxId = embeddedConfigInfoPersistService.findConfigMaxId();
-        Assert.assertEquals(0, configMaxId);
+        assertEquals(0, configMaxId);
     }
     
     @Test
-    public void testFindConfigInfoById() {
+    void testFindConfigInfoById() {
         long id = 1234567890876L;
         ConfigInfo configInfo = new ConfigInfo();
         configInfo.setId(id);
-        Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {id}), eq(CONFIG_INFO_ROW_MAPPER)))
-                .thenReturn(configInfo);
+        Mockito
+            .when(databaseOperate.queryOne(anyString(), eq(new Object[] {id}),
+                eq(CONFIG_INFO_ROW_MAPPER)))
+            .thenReturn(configInfo);
         ConfigInfo configReturn = embeddedConfigInfoPersistService.findConfigInfo(id);
-        Assert.assertEquals(id, configReturn.getId());
+        assertEquals(id, configReturn.getId());
     }
     
     @Test
-    public void testFindConfigInfoByDataId() {
+    void testFindConfigInfoByDataId() {
         String dataId = "dataId4567";
         String group = "group3456789";
         String tenant = "tenant4567890";
@@ -634,37 +999,39 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configInfoWrapper.setTenant(tenant);
         
         Mockito.when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(configInfoWrapper);
-        ConfigInfo configReturn = embeddedConfigInfoPersistService.findConfigInfo(dataId, group, tenant);
-        Assert.assertEquals(dataId, configReturn.getDataId());
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(configInfoWrapper);
+        ConfigInfo configReturn =
+            embeddedConfigInfoPersistService.findConfigInfo(dataId, group, tenant);
+        assertEquals(dataId, configReturn.getDataId());
     }
     
     @Test
-    public void testFindConfigInfo4Page() {
+    void testFindConfigInfo4Page() {
         String dataId = "dataId4567222";
         String group = "group3456789";
         String tenant = "tenant4567890";
         
         //mock total count
         when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant, dataId, group}),
-                eq(Integer.class))).thenReturn(new Integer(9));
+            eq(Integer.class))).thenReturn(new Integer(9));
         //mock page list
         List<ConfigInfo> result = new ArrayList<>();
         result.add(createMockConfigInfo(0));
         result.add(createMockConfigInfo(1));
         result.add(createMockConfigInfo(2));
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {tenant, dataId, group}),
-                eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
         Map<String, Object> configAdvanceInfo = new HashMap<>();
-        Page<ConfigInfo> configInfo4Page = embeddedConfigInfoPersistService.findConfigInfo4Page(1, 3, dataId, group,
+        Page<ConfigInfo> configInfo4Page =
+            embeddedConfigInfoPersistService.findConfigInfo4Page(1, 3, dataId, group,
                 tenant, configAdvanceInfo);
-        Assert.assertEquals(result.size(), configInfo4Page.getPageItems().size());
-        Assert.assertEquals(9, configInfo4Page.getTotalCount());
+        assertEquals(result.size(), configInfo4Page.getPageItems().size());
+        assertEquals(9, configInfo4Page.getTotalCount());
         
     }
     
     @Test
-    public void testFindConfigInfo4PageWithTags() {
+    void testFindConfigInfo4PageWithTags() {
         String dataId = "dataId4567222";
         String group = "group3456789";
         String tenant = "tenant4567890";
@@ -672,62 +1039,88 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configAdvanceInfo.put("config_tags", "tags1,tags3");
         
         //mock total count
-        when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant, dataId, group, "tags1", "tags3"}),
-                eq(Integer.class))).thenReturn(new Integer(9));
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {tenant, dataId, group, "tags1", "tags3"}),
+            eq(Integer.class))).thenReturn(new Integer(9));
         //mock page list
         List<ConfigInfo> result = new ArrayList<>();
         result.add(createMockConfigInfo(0));
         result.add(createMockConfigInfo(1));
         result.add(createMockConfigInfo(2));
-        when(databaseOperate.queryMany(anyString(), eq(new Object[] {tenant, dataId, group, "tags1", "tags3"}),
-                eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
+        when(databaseOperate.queryMany(anyString(),
+            eq(new Object[] {tenant, dataId, group, "tags1", "tags3"}),
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
         
-        Page<ConfigInfo> configInfo4Page = embeddedConfigInfoPersistService.findConfigInfo4Page(1, 3, dataId, group,
+        Page<ConfigInfo> configInfo4Page =
+            embeddedConfigInfoPersistService.findConfigInfo4Page(1, 3, dataId, group,
                 tenant, configAdvanceInfo);
-        Assert.assertEquals(result.size(), configInfo4Page.getPageItems().size());
-        Assert.assertEquals(9, configInfo4Page.getTotalCount());
+        assertEquals(result.size(), configInfo4Page.getPageItems().size());
+        assertEquals(9, configInfo4Page.getTotalCount());
     }
     
     @Test
-    public void testConfigInfoCount() {
+    void testFindConfigInfo4PageFillsConfigTags() {
+        Map<String, Object> configAdvanceInfo = new HashMap<>();
+        configAdvanceInfo.put("appName", "appName");
+        configAdvanceInfo.put("content", "content");
+        ConfigInfo configInfo = createMockConfigInfo(0);
+        configInfo.setTenant(StringUtils.EMPTY);
+        configInfo.setEncryptedDataKey(StringUtils.EMPTY);
+        when(databaseOperate.queryOne(anyString(), Mockito.<Object[]>any(),
+            eq(Integer.class))).thenReturn(1);
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(),
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(Collections.singletonList(configInfo));
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(), eq(String.class)))
+            .thenReturn(Arrays.asList("tag1", "tag2"));
+        
+        Page<ConfigInfo> page = embeddedConfigInfoPersistService.findConfigInfo4Page(1, 3,
+            "dataId", "group", "", configAdvanceInfo);
+        
+        assertEquals("tag1,tag2", page.getPageItems().get(0).getConfigTags());
+    }
+    
+    @Test
+    void testConfigInfoCount() {
         
         //mock total count
         when(databaseOperate.queryOne(anyString(), eq(Integer.class))).thenReturn(new Integer(9));
         int count = embeddedConfigInfoPersistService.configInfoCount();
-        Assert.assertEquals(9, count);
+        assertEquals(9, count);
         
         when(databaseOperate.queryOne(anyString(), eq(Integer.class))).thenReturn(null);
         try {
             embeddedConfigInfoPersistService.configInfoCount();
-            Assert.assertTrue(false);
+            assertTrue(false);
         } catch (Exception e) {
-            Assert.assertTrue(e instanceof IllegalArgumentException);
+            assertTrue(e instanceof IllegalArgumentException);
         }
         
     }
     
     @Test
-    public void testConfigInfoCountByTenant() {
+    void testConfigInfoCountByTenant() {
         
         String tenant = "tenant124";
         //mock total count
-        when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant}), eq(Integer.class))).thenReturn(
+        when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant}), eq(Integer.class)))
+            .thenReturn(
                 new Integer(90));
         int count = embeddedConfigInfoPersistService.configInfoCount(tenant);
-        Assert.assertEquals(90, count);
+        assertEquals(90, count);
         
-        when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant}), eq(Integer.class))).thenReturn(null);
+        when(databaseOperate.queryOne(anyString(), eq(new Object[] {tenant}), eq(Integer.class)))
+            .thenReturn(null);
         try {
             embeddedConfigInfoPersistService.configInfoCount(tenant);
-            Assert.assertTrue(false);
+            assertTrue(false);
         } catch (Exception e) {
-            Assert.assertTrue(e instanceof IllegalArgumentException);
+            assertTrue(e instanceof IllegalArgumentException);
         }
         
     }
     
     @Test
-    public void testFindConfigInfoLike4Page() {
+    void testFindConfigInfoLike4Page() {
         String dataId = "dataId4567222*";
         String group = "group3456789*";
         String tenant = "tenant4567890";
@@ -738,26 +1131,31 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         configAdvanceInfo.put("content", content);
         //mock total count
         when(databaseOperate.queryOne(anyString(),
-                eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"), appName,
-                        content}), eq(Integer.class))).thenReturn(new Integer(9));
+            eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"),
+                appName,
+                content}),
+            eq(Integer.class))).thenReturn(new Integer(9));
         //mock page list
         List<ConfigInfo> result = new ArrayList<>();
         result.add(createMockConfigInfo(0));
         result.add(createMockConfigInfo(1));
         result.add(createMockConfigInfo(2));
         when(databaseOperate.queryMany(anyString(),
-                eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"), appName,
-                        content}), eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
+            eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"),
+                appName,
+                content}),
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
         
-        Page<ConfigInfo> configInfo4Page = embeddedConfigInfoPersistService.findConfigInfoLike4Page(1, 3, dataId, group,
+        Page<ConfigInfo> configInfo4Page =
+            embeddedConfigInfoPersistService.findConfigInfoLike4Page(1, 3, dataId, group,
                 tenant, configAdvanceInfo);
-        Assert.assertEquals(result.size(), configInfo4Page.getPageItems().size());
-        Assert.assertEquals(9, configInfo4Page.getTotalCount());
+        assertEquals(result.size(), configInfo4Page.getPageItems().size());
+        assertEquals(9, configInfo4Page.getTotalCount());
         
     }
     
     @Test
-    public void testFindConfigInfoLike4PageWithTags() {
+    void testFindConfigInfoLike4PageWithTags() {
         
         String appName = "appName1234";
         String content = "content123";
@@ -770,26 +1168,51 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         String tenant = "tenant4567890";
         //mock total count
         when(databaseOperate.queryOne(anyString(),
-                eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"), appName, content,
-                        "tags", "tag2"}), eq(Integer.class))).thenReturn(new Integer(9));
+            eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"),
+                appName, content,
+                "tags", "tag2"}),
+            eq(Integer.class))).thenReturn(new Integer(9));
         //mock page list
         List<ConfigInfo> result = new ArrayList<>();
         result.add(createMockConfigInfo(0));
         result.add(createMockConfigInfo(1));
         result.add(createMockConfigInfo(2));
         when(databaseOperate.queryMany(anyString(),
-                eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"), appName, content,
-                        "tags", "tag2"}), eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
+            eq(new Object[] {tenant, dataId.replaceAll("\\*", "%"), group.replaceAll("\\*", "%"),
+                appName, content,
+                "tags", "tag2"}),
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
         
-        Page<ConfigInfo> configInfo4Page = embeddedConfigInfoPersistService.findConfigInfoLike4Page(1, 3, dataId, group,
+        Page<ConfigInfo> configInfo4Page =
+            embeddedConfigInfoPersistService.findConfigInfoLike4Page(1, 3, dataId, group,
                 tenant, configAdvanceInfo);
-        Assert.assertEquals(result.size(), configInfo4Page.getPageItems().size());
-        Assert.assertEquals(9, configInfo4Page.getTotalCount());
+        assertEquals(result.size(), configInfo4Page.getPageItems().size());
+        assertEquals(9, configInfo4Page.getTotalCount());
         
     }
     
     @Test
-    public void testFindChangeConfig() {
+    void testFindConfigInfoLike4PageWithTypesAndReturnedTags() {
+        Map<String, Object> configAdvanceInfo = new HashMap<>();
+        configAdvanceInfo.put("types", "yaml,properties");
+        ConfigInfo configInfo = createMockConfigInfo(0);
+        configInfo.setTenant(StringUtils.EMPTY);
+        configInfo.setEncryptedDataKey(StringUtils.EMPTY);
+        when(databaseOperate.queryOne(anyString(), Mockito.<Object[]>any(),
+            eq(Integer.class))).thenReturn(1);
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(),
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(Collections.singletonList(configInfo));
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(), eq(String.class)))
+            .thenReturn(Arrays.asList("tag1", "tag2"));
+        
+        Page<ConfigInfo> page = embeddedConfigInfoPersistService.findConfigInfoLike4Page(1, 3,
+            "dataId*", "group*", "", configAdvanceInfo);
+        
+        assertEquals("tag1,tag2", page.getPageItems().get(0).getConfigTags());
+    }
+    
+    @Test
+    void testFindChangeConfig() {
         
         //mock page list
         List<ConfigInfoStateWrapper> result = new ArrayList<>();
@@ -799,16 +1222,18 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         Timestamp startTime = new Timestamp(System.currentTimeMillis() - 1000L);
         long lastMaxId = 10000L;
         int pageSize = 30;
-        when(databaseOperate.queryMany(anyString(), eq(new Object[] {startTime, lastMaxId, pageSize}),
-                eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(result);
+        when(databaseOperate.queryMany(anyString(),
+            eq(new Object[] {startTime, lastMaxId, pageSize}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(result);
         
-        List<ConfigInfoStateWrapper> configInfo4List = embeddedConfigInfoPersistService.findChangeConfig(startTime,
+        List<ConfigInfoStateWrapper> configInfo4List =
+            embeddedConfigInfoPersistService.findChangeConfig(startTime,
                 lastMaxId, pageSize);
-        Assert.assertEquals(result.size(), configInfo4List.size());
+        assertEquals(result.size(), configInfo4List.size());
     }
     
     @Test
-    public void testSelectTagByConfig() {
+    void testSelectTagByConfig() {
         String dataId = "dataId4567222";
         String group = "group3456789";
         String tenant = "tenant4567890";
@@ -816,13 +1241,14 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         //mock page list
         List<String> tagStrings = Arrays.asList("", "", "");
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(String.class))).thenReturn(tagStrings);
-        List<String> configTags = embeddedConfigInfoPersistService.selectTagByConfig(dataId, group, tenant);
-        Assert.assertEquals(tagStrings, configTags);
+            eq(String.class))).thenReturn(tagStrings);
+        List<String> configTags =
+            embeddedConfigInfoPersistService.selectTagByConfig(dataId, group, tenant);
+        assertEquals(tagStrings, configTags);
     }
     
     @Test
-    public void testFindConfigInfosByIds() {
+    void testFindConfigInfosByIds() {
         
         //mock page list
         List<ConfigInfo> result = new ArrayList<>();
@@ -830,20 +1256,22 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         result.add(createMockConfigInfo(1));
         result.add(createMockConfigInfo(2));
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {123L, 1232345L}),
-                eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
+            eq(CONFIG_INFO_ROW_MAPPER))).thenReturn(result);
         String ids = "123,1232345";
-        List<ConfigInfo> configInfosByIds = embeddedConfigInfoPersistService.findConfigInfosByIds(ids);
-        Assert.assertEquals(result.size(), configInfosByIds.size());
-        Assert.assertEquals(result.get(2).getDataId(), configInfosByIds.get(2).getDataId());
+        List<ConfigInfo> configInfosByIds =
+            embeddedConfigInfoPersistService.findConfigInfosByIds(ids);
+        assertEquals(result.size(), configInfosByIds.size());
+        assertEquals(result.get(2).getDataId(), configInfosByIds.get(2).getDataId());
         
         //blank ids.
-        List<ConfigInfo> nullResultBlankIds = embeddedConfigInfoPersistService.findConfigInfosByIds("");
-        Assert.assertTrue(nullResultBlankIds == null);
+        List<ConfigInfo> nullResultBlankIds =
+            embeddedConfigInfoPersistService.findConfigInfosByIds("");
+        assertTrue(nullResultBlankIds == null);
         
     }
     
     @Test
-    public void testFindConfigAdvanceInfo() {
+    void testFindConfigAdvanceInfo() {
         
         String dataId = "dataId1324";
         String group = "group23546";
@@ -851,25 +1279,42 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         //mock select tags
         List<String> mockTags = Arrays.asList("tag1", "tag2", "tag3");
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(String.class))).thenReturn(mockTags);
+            eq(String.class))).thenReturn(mockTags);
         
         String schema = "schema12345654";
         //mock select config advance
         ConfigAdvanceInfo mockedAdvance = new ConfigAdvanceInfo();
         mockedAdvance.setSchema(schema);
         when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_ADVANCE_INFO_ROW_MAPPER))).thenReturn(mockedAdvance);
+            eq(CONFIG_ADVANCE_INFO_ROW_MAPPER))).thenReturn(mockedAdvance);
         
         //execute return mock obj
-        ConfigAdvanceInfo configAdvanceInfo = embeddedConfigInfoPersistService.findConfigAdvanceInfo(dataId, group,
+        ConfigAdvanceInfo configAdvanceInfo =
+            embeddedConfigInfoPersistService.findConfigAdvanceInfo(dataId, group,
                 tenant);
         //expect check schema & tags.
-        Assert.assertEquals(mockedAdvance.getSchema(), configAdvanceInfo.getSchema());
-        Assert.assertEquals(String.join(",", mockTags), configAdvanceInfo.getConfigTags());
+        assertEquals(mockedAdvance.getSchema(), configAdvanceInfo.getSchema());
+        assertEquals(String.join(",", mockTags), configAdvanceInfo.getConfigTags());
     }
     
     @Test
-    public void testFindConfigAllInfo() {
+    void testFindConfigAdvanceInfoUsesEmptyTenant() {
+        ConfigAdvanceInfo mockedAdvance = new ConfigAdvanceInfo();
+        when(databaseOperate.queryMany(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}), eq(String.class)))
+            .thenReturn(Collections.emptyList());
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"dataId", "group", StringUtils.EMPTY}),
+            eq(CONFIG_ADVANCE_INFO_ROW_MAPPER))).thenReturn(mockedAdvance);
+        
+        ConfigAdvanceInfo result = embeddedConfigInfoPersistService.findConfigAdvanceInfo(
+            "dataId", "group", null);
+        
+        assertEquals(mockedAdvance, result);
+    }
+    
+    @Test
+    void testFindConfigAllInfo() {
         
         String dataId = "dataId1324";
         String group = "group23546";
@@ -877,25 +1322,26 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         //mock select tags
         List<String> mockTags = Arrays.asList("tag1", "tag2", "tag3");
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(String.class))).thenReturn(mockTags);
+            eq(String.class))).thenReturn(mockTags);
         
         String schema = "schema12345654";
         //mock select config advance
         ConfigAllInfo mockedConfig = new ConfigAllInfo();
         mockedConfig.setSchema(schema);
         when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockedConfig);
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockedConfig);
         
         //execute return mock obj
-        ConfigAllInfo configAllInfo = embeddedConfigInfoPersistService.findConfigAllInfo(dataId, group, tenant);
+        ConfigAllInfo configAllInfo =
+            embeddedConfigInfoPersistService.findConfigAllInfo(dataId, group, tenant);
         //expect check schema & tags.
-        Assert.assertEquals(mockedConfig.getSchema(), configAllInfo.getSchema());
-        Assert.assertEquals(String.join(",", mockTags), configAllInfo.getConfigTags());
+        assertEquals(mockedConfig.getSchema(), configAllInfo.getSchema());
+        assertEquals(String.join(",", mockTags), configAllInfo.getConfigTags());
         
     }
     
     @Test
-    public void testFindConfigInfoState() {
+    void testFindConfigInfoState() {
         
         String dataId = "dataId1324";
         String group = "group23546";
@@ -906,18 +1352,19 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         mockedConfig.setLastModified(2345678L);
         mockedConfig.setId(23456789098765L);
         when(databaseOperate.queryOne(anyString(), eq(new Object[] {dataId, group, tenant}),
-                eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(mockedConfig);
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER))).thenReturn(mockedConfig);
         
         //execute return mock obj
-        ConfigInfoStateWrapper configInfoStateWrapper = embeddedConfigInfoPersistService.findConfigInfoState(dataId,
+        ConfigInfoStateWrapper configInfoStateWrapper =
+            embeddedConfigInfoPersistService.findConfigInfoState(dataId,
                 group, tenant);
         //expect check schema & tags.
-        Assert.assertEquals(mockedConfig.getId(), configInfoStateWrapper.getId());
-        Assert.assertEquals(mockedConfig.getLastModified(), configInfoStateWrapper.getLastModified());
+        assertEquals(mockedConfig.getId(), configInfoStateWrapper.getId());
+        assertEquals(mockedConfig.getLastModified(), configInfoStateWrapper.getLastModified());
     }
     
     @Test
-    public void testFindAllConfigInfo4Export() {
+    void testFindAllConfigInfo4Export() {
         
         //mock select config state
         List<ConfigAllInfo> mockConfigs = new ArrayList<>();
@@ -932,25 +1379,56 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         List<Long> ids = Arrays.asList(132L, 1343L, 245L);
         
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {132L, 1343L, 245L}),
-                eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockConfigs);
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockConfigs);
         //execute return mock obj
-        List<ConfigAllInfo> configAllInfosIds = embeddedConfigInfoPersistService.findAllConfigInfo4Export(dataId, group,
+        List<ConfigAllInfo> configAllInfosIds =
+            embeddedConfigInfoPersistService.findAllConfigInfo4Export(dataId, group,
                 tenant, appName, ids);
         //expect check
-        Assert.assertEquals(mockConfigs, configAllInfosIds);
+        assertEquals(mockConfigs, configAllInfosIds);
         
-        when(databaseOperate.queryMany(anyString(), eq(new Object[] {tenant, dataId, group, appName}),
-                eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockConfigs);
+        when(databaseOperate.queryMany(anyString(),
+            eq(new Object[] {tenant, dataId, group, appName}),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(mockConfigs);
         //execute return mock obj
-        List<ConfigAllInfo> configAllInfosWithDataId = embeddedConfigInfoPersistService.findAllConfigInfo4Export(dataId,
+        List<ConfigAllInfo> configAllInfosWithDataId =
+            embeddedConfigInfoPersistService.findAllConfigInfo4Export(dataId,
                 group, tenant, appName, null);
         //expect check
-        Assert.assertEquals(mockConfigs, configAllInfosWithDataId);
+        assertEquals(mockConfigs, configAllInfosWithDataId);
         
     }
     
     @Test
-    public void testQueryConfigInfoByNamespace() {
+    void testFindAllConfigInfo4ExportReturnsEmptyList() {
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(Collections.emptyList());
+        
+        List<ConfigAllInfo> result = embeddedConfigInfoPersistService.findAllConfigInfo4Export(
+            null, null, null, null, null);
+        
+        assertEquals(Collections.emptyList(), result);
+    }
+    
+    @Test
+    void testFindAllConfigInfo4ExportFillsConfigTags() {
+        ConfigAllInfo configAllInfo = createMockConfigAllInfo(1);
+        configAllInfo.setDataId("dataId");
+        configAllInfo.setGroup("group");
+        configAllInfo.setTenant(StringUtils.EMPTY);
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(),
+            eq(CONFIG_ALL_INFO_ROW_MAPPER))).thenReturn(Collections.singletonList(configAllInfo));
+        when(databaseOperate.queryMany(anyString(), Mockito.<Object[]>any(), eq(String.class)))
+            .thenReturn(Arrays.asList("tag1", "tag2"));
+        
+        List<ConfigAllInfo> result = embeddedConfigInfoPersistService.findAllConfigInfo4Export(
+            "dataId", "group", "", null, null);
+        
+        assertEquals("tag1,tag2", result.get(0).getConfigTags());
+    }
+    
+    @Test
+    void testQueryConfigInfoByNamespace() {
         
         //mock select config state
         List<ConfigInfoWrapper> mockConfigs = new ArrayList<>();
@@ -959,16 +1437,34 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         mockConfigs.add(createMockConfigInfoWrapper(2));
         String tenant = "tenant13245";
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {tenant}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(mockConfigs);
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(mockConfigs);
         //execute return mock obj
-        List<ConfigInfoWrapper> configInfoWrappers = embeddedConfigInfoPersistService.queryConfigInfoByNamespace(
+        List<ConfigInfoWrapper> configInfoWrappers =
+            embeddedConfigInfoPersistService.queryConfigInfoByNamespace(
                 tenant);
         //expect check
-        Assert.assertEquals(mockConfigs, configInfoWrappers);
+        assertEquals(mockConfigs, configInfoWrappers);
     }
     
     @Test
-    public void testGetTenantIdList() {
+    void testQueryConfigInfoByNamespaceRejectsNullTenant() {
+        assertThrows(IllegalArgumentException.class,
+            () -> embeddedConfigInfoPersistService.queryConfigInfoByNamespace(null));
+    }
+    
+    @Test
+    void testQueryConfigInfoByNamespaceUsesEmptyTenant() {
+        when(databaseOperate.queryMany(anyString(), eq(new Object[] {StringUtils.EMPTY}),
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(Collections.emptyList());
+        
+        List<ConfigInfoWrapper> result =
+            embeddedConfigInfoPersistService.queryConfigInfoByNamespace("");
+        
+        assertEquals(Collections.emptyList(), result);
+    }
+    
+    @Test
+    void testGetTenantIdList() {
         
         //mock select config state
         List<String> tenantStrings = Arrays.asList("tenant1", "tenant2", "tenant3");
@@ -981,17 +1477,19 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         List<Map<String, Object>> params = new ArrayList<>();
         params.addAll(Arrays.asList(g1, g2, g3));
         
-        when(databaseOperate.queryMany(anyString(), eq(new Object[] {}), eq(MAP_ROW_MAPPER))).thenReturn(params);
+        when(databaseOperate.queryMany(anyString(), eq(new Object[] {}), eq(MAP_ROW_MAPPER)))
+            .thenReturn(params);
         int page = 10;
         int pageSize = 100;
         //execute return mock obj
-        List<String> returnTenants = embeddedConfigInfoPersistService.getTenantIdList(page, pageSize);
+        List<String> returnTenants =
+            embeddedConfigInfoPersistService.getTenantIdList(page, pageSize);
         //expect check
-        Assert.assertEquals(tenantStrings, returnTenants);
+        assertEquals(tenantStrings, returnTenants);
     }
     
     @Test
-    public void testGetGroupIdList() {
+    void testGetGroupIdList() {
         
         //mock select config state
         List<String> groupStrings = Arrays.asList("group1", "group2", "group3");
@@ -1004,18 +1502,19 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         g3.put("GROUP_ID", groupStrings.get(2));
         List<Map<String, Object>> params = new ArrayList<>();
         params.addAll(Arrays.asList(g1, g2, g3));
-        when(databaseOperate.queryMany(anyString(), eq(new Object[] {}), eq(MAP_ROW_MAPPER))).thenReturn(params);
+        when(databaseOperate.queryMany(anyString(), eq(new Object[] {}), eq(MAP_ROW_MAPPER)))
+            .thenReturn(params);
         int page = 10;
         int pageSize = 100;
         //execute return mock obj
         List<String> returnGroups = embeddedConfigInfoPersistService.getGroupIdList(page, pageSize);
         
         //expect check
-        Assert.assertEquals(groupStrings, returnGroups);
+        assertEquals(groupStrings, returnGroups);
     }
     
     @Test
-    public void testFindAllConfigInfoFragment() {
+    void testFindAllConfigInfoFragment() {
         //mock page list
         List<ConfigInfoWrapper> mockConfigs = new ArrayList<>();
         mockConfigs.add(createMockConfigInfoWrapper(0));
@@ -1023,13 +1522,75 @@ public class EmbeddedConfigInfoPersistServiceImplTest {
         mockConfigs.add(createMockConfigInfoWrapper(2));
         long lastId = 10111L;
         when(databaseOperate.queryMany(anyString(), eq(new Object[] {lastId}),
-                eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(mockConfigs);
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(mockConfigs);
         int pageSize = 100;
         //execute return mock obj
-        Page<ConfigInfoWrapper> returnConfigPage = embeddedConfigInfoPersistService.findAllConfigInfoFragment(lastId,
+        Page<ConfigInfoWrapper> returnConfigPage =
+            embeddedConfigInfoPersistService.findAllConfigInfoFragment(lastId,
                 pageSize, true);
         //expect check
-        Assert.assertEquals(mockConfigs, returnConfigPage.getPageItems());
+        assertEquals(mockConfigs, returnConfigPage.getPageItems());
         
+    }
+    
+    @Test
+    void testUpdateConfigInfoMetadataNotFound() {
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"d", "g", ""}),
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(null);
+        assertThrows(NacosException.class,
+            () -> embeddedConfigInfoPersistService
+                .updateConfigInfoMetadata("d", "g", "", "tags",
+                    "desc"));
+    }
+    
+    @Test
+    void testUpdateConfigInfoMetadataSuccess() throws NacosException {
+        ConfigInfoWrapper wrapper = new ConfigInfoWrapper();
+        wrapper.setId(100L);
+        wrapper.setDataId("d");
+        wrapper.setGroup("g");
+        wrapper.setTenant("");
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"d", "g", ""}),
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(wrapper);
+        
+        ConfigInfoStateWrapper stateWrapper = new ConfigInfoStateWrapper();
+        stateWrapper.setId(100L);
+        stateWrapper.setLastModified(System.currentTimeMillis());
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"d", "g", ""}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(stateWrapper);
+        
+        ConfigOperateResult result =
+            embeddedConfigInfoPersistService.updateConfigInfoMetadata(
+                "d", "g", "", "tag1", "desc");
+        assertNotNull(result);
+    }
+    
+    @Test
+    void testUpdateConfigInfoMetadataDescOnly() throws NacosException {
+        ConfigInfoWrapper wrapper = new ConfigInfoWrapper();
+        wrapper.setId(100L);
+        wrapper.setDataId("d");
+        wrapper.setGroup("g");
+        wrapper.setTenant("");
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"d", "g", ""}),
+            eq(CONFIG_INFO_WRAPPER_ROW_MAPPER))).thenReturn(wrapper);
+        
+        ConfigInfoStateWrapper stateWrapper = new ConfigInfoStateWrapper();
+        stateWrapper.setId(100L);
+        stateWrapper.setLastModified(System.currentTimeMillis());
+        when(databaseOperate.queryOne(anyString(),
+            eq(new Object[] {"d", "g", ""}),
+            eq(CONFIG_INFO_STATE_WRAPPER_ROW_MAPPER)))
+            .thenReturn(stateWrapper);
+        
+        ConfigOperateResult result =
+            embeddedConfigInfoPersistService.updateConfigInfoMetadata(
+                "d", "g", "", null, "newdesc");
+        assertNotNull(result);
     }
 }

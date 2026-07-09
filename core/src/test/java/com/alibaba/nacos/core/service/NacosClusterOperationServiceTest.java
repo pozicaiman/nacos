@@ -18,23 +18,23 @@ package com.alibaba.nacos.core.service;
 
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.core.cluster.Member;
-import com.alibaba.nacos.core.cluster.NodeState;
+import com.alibaba.nacos.api.common.NodeState;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.model.request.LookupUpdateRequest;
 import com.alibaba.nacos.sys.env.EnvUtil;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.env.MockEnvironment;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -42,29 +42,30 @@ import static org.mockito.Mockito.when;
 
 /**
  * NacosClusterOperationTest.
+ *
  * @author dongyafei
  * @date 2022/8/15
  */
 
-@RunWith(MockitoJUnitRunner.class)
-public class NacosClusterOperationServiceTest {
+@ExtendWith(MockitoExtension.class)
+class NacosClusterOperationServiceTest {
+    
+    @Mock
+    private final MockEnvironment environment = new MockEnvironment();
     
     private NacosClusterOperationService nacosClusterOperationService;
     
     @Mock
     private ServerMemberManager serverMemberManager;
     
-    @Mock
-    private final MockEnvironment environment = new MockEnvironment();
-    
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         this.nacosClusterOperationService = new NacosClusterOperationService(serverMemberManager);
         EnvUtil.setEnvironment(environment);
     }
     
     @Test
-    public void testSelf() {
+    void testSelf() {
         Member member = new Member();
         member.setIp("1.1.1.1");
         member.setPort(8848);
@@ -77,7 +78,7 @@ public class NacosClusterOperationServiceTest {
     }
     
     @Test
-    public void testListNodes() throws NacosException {
+    void testListNodes() throws NacosException {
         Member member1 = new Member();
         member1.setIp("1.1.1.1");
         member1.setPort(8848);
@@ -99,7 +100,7 @@ public class NacosClusterOperationServiceTest {
     }
     
     @Test
-    public void testSelfHealth() {
+    void testSelfHealth() {
         Member member = new Member();
         member.setIp("1.1.1.1");
         member.setPort(8848);
@@ -112,7 +113,7 @@ public class NacosClusterOperationServiceTest {
     }
     
     @Test
-    public void testUpdateNodes() {
+    void testUpdateNodes() {
         Member member1 = new Member();
         member1.setIp("1.1.1.1");
         member1.setAddress("test");
@@ -121,20 +122,47 @@ public class NacosClusterOperationServiceTest {
         Member member2 = new Member();
         member2.setIp("2.2.2.2");
         member2.setPort(8848);
+        member2.setAddress(null);
         List<Member> members = Arrays.asList(member1, member2);
         
         when(serverMemberManager.update(any())).thenReturn(true);
         Boolean result = nacosClusterOperationService.updateNodes(members);
         verify(serverMemberManager, times(1)).update(any());
-        assertEquals(true, result);
+        assertTrue(result);
     }
     
     @Test
-    public void testUpdateLookup() throws NacosException {
+    void testUpdateLookup() throws NacosException {
         LookupUpdateRequest lookupUpdateRequest = new LookupUpdateRequest();
         lookupUpdateRequest.setType("test");
         Boolean result = nacosClusterOperationService.updateLookup(lookupUpdateRequest);
         verify(serverMemberManager).switchLookup("test");
-        assertEquals(true, result);
+        assertTrue(result);
+    }
+    
+    @Test
+    void testListNodesEmptyAddress() throws NacosException {
+        Member member = new Member();
+        member.setIp("1.1.1.1");
+        member.setPort(8848);
+        member.setState(NodeState.UP);
+        when(serverMemberManager.allMembers()).thenReturn(Arrays.asList(member));
+        
+        Collection<Member> result = nacosClusterOperationService.listNodes("", null);
+        assertEquals(1, result.size());
+        assertEquals("1.1.1.1:8848", result.iterator().next().getAddress());
+    }
+    
+    @Test
+    void testUpdateNodesWhenUpdateReturnsFalse() {
+        Member member = new Member();
+        member.setIp("1.1.1.1");
+        member.setPort(8848);
+        member.setAddress("1.1.1.1:8848");
+        when(serverMemberManager.update(any())).thenReturn(false);
+        
+        Boolean result = nacosClusterOperationService.updateNodes(Arrays.asList(member));
+        assertTrue(result);
+        verify(serverMemberManager, times(1)).update(any());
     }
 }

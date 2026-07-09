@@ -38,6 +38,8 @@ public class ConfigInfoStateWrapper implements Serializable {
     
     private String md5;
     
+    private String grayName;
+    
     public long getId() {
         return id;
     }
@@ -78,6 +80,14 @@ public class ConfigInfoStateWrapper implements Serializable {
         this.tenant = tenant;
     }
     
+    public String getGrayName() {
+        return grayName;
+    }
+    
+    public void setGrayName(String grayName) {
+        this.grayName = grayName;
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -87,8 +97,10 @@ public class ConfigInfoStateWrapper implements Serializable {
             return false;
         }
         ConfigInfoStateWrapper that = (ConfigInfoStateWrapper) o;
-        return id == that.id && lastModified == that.lastModified && Objects.equals(dataId, that.dataId)
-                && Objects.equals(group, that.group) && Objects.equals(tenant, that.tenant) && Objects.equals(md5,
+        return id == that.id && lastModified == that.lastModified
+            && Objects.equals(dataId, that.dataId)
+            && Objects.equals(group, that.group) && Objects.equals(tenant, that.tenant)
+            && Objects.equals(md5,
                 that.md5);
     }
     

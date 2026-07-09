@@ -36,9 +36,8 @@ import java.util.stream.Collectors;
 /**
  * connection control manager.
  *
- * @author shiyiyue
+ * @author shiyiyu
  */
-@SuppressWarnings("PMD.AbstractClassShouldStartWithAbstractNamingRule")
 public abstract class ConnectionControlManager {
     
     private final ConnectionControlRuleParser connectionControlRuleParser;
@@ -51,8 +50,9 @@ public abstract class ConnectionControlManager {
     
     public ConnectionControlManager() {
         metricsCollectorList = NacosServiceLoader.load(ConnectionMetricsCollector.class);
-        Loggers.CONTROL.info("Load connection metrics collector,size={},{}", metricsCollectorList.size(),
-                metricsCollectorList);
+        Loggers.CONTROL.info("Load connection metrics collector,size={},{}",
+            metricsCollectorList.size(),
+            metricsCollectorList);
         this.connectionControlRuleParser = buildConnectionControlRuleParser();
         initConnectionRule();
         if (!metricsCollectorList.isEmpty()) {
@@ -64,7 +64,7 @@ public abstract class ConnectionControlManager {
     /**
      * get manager name.
      *
-     * @return
+     * @return name
      */
     public abstract String getName();
     
@@ -88,13 +88,15 @@ public abstract class ConnectionControlManager {
         RuleStorageProxy ruleStorageProxy = RuleStorageProxy.getInstance();
         String localRuleContent = ruleStorageProxy.getLocalDiskStorage().getConnectionRule();
         if (StringUtils.isNotBlank(localRuleContent)) {
-            Loggers.CONTROL.info("Found local disk connection rule content on start up,value  ={}", localRuleContent);
+            Loggers.CONTROL.info("Found local disk connection rule content on start up,value  ={}",
+                localRuleContent);
         } else if (ruleStorageProxy.getExternalStorage() != null
-                && ruleStorageProxy.getExternalStorage().getConnectionRule() != null) {
+            && ruleStorageProxy.getExternalStorage().getConnectionRule() != null) {
             localRuleContent = ruleStorageProxy.getExternalStorage().getConnectionRule();
             if (StringUtils.isNotBlank(localRuleContent)) {
-                Loggers.CONTROL.info("Found persist disk connection rule content on start up ,value  ={}",
-                        localRuleContent);
+                Loggers.CONTROL.info(
+                    "Found persist disk connection rule content on start up ,value  ={}",
+                    localRuleContent);
             }
         }
         
@@ -104,12 +106,13 @@ public abstract class ConnectionControlManager {
             
         } else {
             Loggers.CONTROL.info("No connection rule content found ,use default empty rule ");
-            connectionControlRule = new ConnectionControlRule();
+            connectionControlRule = connectionControlRuleParser.parseRule("");
         }
     }
     
     private void startConnectionMetricsReport() {
-        executorService.scheduleWithFixedDelay(new ConnectionMetricsReporter(), 0, 3000, TimeUnit.MILLISECONDS);
+        executorService.scheduleWithFixedDelay(new ConnectionMetricsReporter(), 3000, 3000,
+            TimeUnit.MILLISECONDS);
     }
     
     public ConnectionControlRule getConnectionLimitRule() {
@@ -127,7 +130,7 @@ public abstract class ConnectionControlManager {
      * check connection allowed.
      *
      * @param connectionCheckRequest connectionCheckRequest.
-     * @return
+     * @return connection check response
      */
     public abstract ConnectionCheckResponse check(ConnectionCheckRequest connectionCheckRequest);
     
@@ -136,10 +139,12 @@ public abstract class ConnectionControlManager {
         @Override
         public void run() {
             Map<String, Integer> metricsTotalCount = metricsCollectorList.stream().collect(
-                    Collectors.toMap(ConnectionMetricsCollector::getName, ConnectionMetricsCollector::getTotalCount));
+                Collectors.toMap(ConnectionMetricsCollector::getName,
+                    ConnectionMetricsCollector::getTotalCount));
             int totalCount = metricsTotalCount.values().stream().mapToInt(Integer::intValue).sum();
             
-            Loggers.CONNECTION.info("ConnectionMetrics, totalCount = {}, detail = {}", totalCount, metricsTotalCount);
+            Loggers.CONNECTION.info("ConnectionMetrics, totalCount = {}, detail = {}", totalCount,
+                metricsTotalCount);
         }
     }
 }

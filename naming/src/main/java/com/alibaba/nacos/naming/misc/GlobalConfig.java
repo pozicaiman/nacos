@@ -59,4 +59,14 @@ public class GlobalConfig {
         return EnvUtil.getProperty(EXPIRED_METADATA_EXPIRED_TIME, Long.class, 60000L);
     }
     
+    public static int getMaxPatternCount() {
+        return EnvUtil.getProperty("nacos.naming.fuzzy.watch.max.pattern.count", Integer.class, 20);
+    }
+    
+    public static int getMaxMatchedServiceCount() {
+        return EnvUtil.getProperty("nacos.naming.fuzzy.watch.max.pattern.match.service.count",
+            Integer.class, 500);
+        
+    }
+    
 }

@@ -58,10 +58,11 @@ public class EmbeddedConfigDumpApplyHook extends EmbeddedApplyHook {
             return;
         }
         if (extendInfo.containsKey(Constants.EXTEND_INFOS_CONFIG_DUMP_EVENT)) {
-            String jsonVal = extendInfo.get(Constants.EXTEND_INFO_CONFIG_DUMP_EVENT);
+            String jsonVal = extendInfo.get(Constants.EXTEND_INFOS_CONFIG_DUMP_EVENT);
             if (StringUtils.isNotBlank(jsonVal)) {
-                List<ConfigDumpEvent> list = JacksonUtils.toObj(jsonVal, new GenericType<List<ConfigDumpEvent>>() {
-                }.getType());
+                List<ConfigDumpEvent> list =
+                    JacksonUtils.toObj(jsonVal, new GenericType<List<ConfigDumpEvent>>() {
+                    }.getType());
                 list.stream().filter(Objects::nonNull).forEach(NotifyCenter::publishEvent);
             }
         }

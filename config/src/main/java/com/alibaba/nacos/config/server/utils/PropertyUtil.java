@@ -24,10 +24,13 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static com.alibaba.nacos.config.server.utils.LogUtil.FATAL_LOG;
 
 /**
  * Properties util.
@@ -100,6 +103,11 @@ public class PropertyUtil implements ApplicationContextInitializer<ConfigurableA
     private static int correctUsageDelay = 10 * 60;
     
     private static boolean dumpChangeOn = true;
+    
+    /**
+     * The number of days to retain the configuration history, the default is 30 days.
+     */
+    private static int configRententionDays = 30;
     
     /**
      * dumpChangeWorkerInterval, default 30 seconds.
@@ -242,42 +250,72 @@ public class PropertyUtil implements ApplicationContextInitializer<ConfigurableA
         PropertyUtil.correctUsageDelay = correctUsageDelay;
     }
     
+    public static int getConfigRententionDays() {
+        return configRententionDays;
+    }
+    
+    private void setConfigRententionDays() {
+        String val = getProperty(PropertiesConstant.CONFIG_RENTENTION_DAYS);
+        if (null != val) {
+            int tmp = 0;
+            try {
+                tmp = Integer.parseInt(val);
+                if (tmp > 0) {
+                    PropertyUtil.configRententionDays = tmp;
+                }
+            } catch (NumberFormatException nfe) {
+                FATAL_LOG.error("read nacos.config.retention.days wrong", nfe);
+            }
+        }
+    }
+    
     public static boolean isStandaloneMode() {
         return EnvUtil.getStandaloneMode();
     }
     
     private void loadSetting() {
         try {
-            setNotifyConnectTimeout(Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.NOTIFY_CONNECT_TIMEOUT,
+            setNotifyConnectTimeout(
+                Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.NOTIFY_CONNECT_TIMEOUT,
                     String.valueOf(notifyConnectTimeout))));
             LOGGER.info("notifyConnectTimeout:{}", notifyConnectTimeout);
-            setNotifySocketTimeout(Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.NOTIFY_SOCKET_TIMEOUT,
+            setNotifySocketTimeout(
+                Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.NOTIFY_SOCKET_TIMEOUT,
                     String.valueOf(notifySocketTimeout))));
             LOGGER.info("notifySocketTimeout:{}", notifySocketTimeout);
             setHealthCheck(Boolean.parseBoolean(
-                    EnvUtil.getProperty(PropertiesConstant.IS_HEALTH_CHECK, String.valueOf(isHealthCheck))));
+                EnvUtil.getProperty(PropertiesConstant.IS_HEALTH_CHECK,
+                    String.valueOf(isHealthCheck))));
             LOGGER.info("isHealthCheck:{}", isHealthCheck);
             setMaxHealthCheckFailCount(Integer.parseInt(
-                    EnvUtil.getProperty(PropertiesConstant.MAX_HEALTH_CHECK_FAIL_COUNT,
-                            String.valueOf(maxHealthCheckFailCount))));
+                EnvUtil.getProperty(PropertiesConstant.MAX_HEALTH_CHECK_FAIL_COUNT,
+                    String.valueOf(maxHealthCheckFailCount))));
             LOGGER.info("maxHealthCheckFailCount:{}", maxHealthCheckFailCount);
             setMaxContent(
-                    Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.MAX_CONTENT, String.valueOf(maxContent))));
+                Integer.parseInt(EnvUtil.getProperty(PropertiesConstant.MAX_CONTENT,
+                    String.valueOf(maxContent))));
             LOGGER.info("maxContent:{}", maxContent);
             // capacity management
             setManageCapacity(getBoolean(PropertiesConstant.IS_MANAGE_CAPACITY, isManageCapacity));
-            setCapacityLimitCheck(getBoolean(PropertiesConstant.IS_CAPACITY_LIMIT_CHECK, isCapacityLimitCheck));
-            setDefaultClusterQuota(getInt(PropertiesConstant.DEFAULT_CLUSTER_QUOTA, defaultClusterQuota));
+            setCapacityLimitCheck(
+                getBoolean(PropertiesConstant.IS_CAPACITY_LIMIT_CHECK, isCapacityLimitCheck));
+            setDefaultClusterQuota(
+                getInt(PropertiesConstant.DEFAULT_CLUSTER_QUOTA, defaultClusterQuota));
             setDefaultGroupQuota(getInt(PropertiesConstant.DEFAULT_GROUP_QUOTA, defaultGroupQuota));
-            setDefaultTenantQuota(getInt(PropertiesConstant.DEFAULT_TENANT_QUOTA, defaultTenantQuota));
+            setDefaultTenantQuota(
+                getInt(PropertiesConstant.DEFAULT_TENANT_QUOTA, defaultTenantQuota));
             setDefaultMaxSize(getInt(PropertiesConstant.DEFAULT_MAX_SIZE, defaultMaxSize));
-            setDefaultMaxAggrCount(getInt(PropertiesConstant.DEFAULT_MAX_AGGR_COUNT, defaultMaxAggrCount));
-            setDefaultMaxAggrSize(getInt(PropertiesConstant.DEFAULT_MAX_AGGR_SIZE, defaultMaxAggrSize));
+            setDefaultMaxAggrCount(
+                getInt(PropertiesConstant.DEFAULT_MAX_AGGR_COUNT, defaultMaxAggrCount));
+            setDefaultMaxAggrSize(
+                getInt(PropertiesConstant.DEFAULT_MAX_AGGR_SIZE, defaultMaxAggrSize));
             setCorrectUsageDelay(getInt(PropertiesConstant.CORRECT_USAGE_DELAY, correctUsageDelay));
-            setInitialExpansionPercent(getInt(PropertiesConstant.INITIAL_EXPANSION_PERCENT, initialExpansionPercent));
+            setInitialExpansionPercent(
+                getInt(PropertiesConstant.INITIAL_EXPANSION_PERCENT, initialExpansionPercent));
+            setConfigRententionDays();
             setDumpChangeOn(getBoolean(PropertiesConstant.DUMP_CHANGE_ON, dumpChangeOn));
             setDumpChangeWorkerInterval(
-                    getLong(PropertiesConstant.DUMP_CHANGE_WORKER_INTERVAL, dumpChangeWorkerInterval));
+                getLong(PropertiesConstant.DUMP_CHANGE_WORKER_INTERVAL, dumpChangeWorkerInterval));
         } catch (Exception e) {
             LOGGER.error("read application.properties failed", e);
             throw e;
@@ -334,17 +372,18 @@ public class PropertyUtil implements ApplicationContextInitializer<ConfigurableA
     }
     
     static int initAllDumpPageSize() {
-        long memLimitMB = getMemLimitMB();
+        long memLimitMb = getMemLimitMb();
         
         //512MB->50 Page Size
-        int pageSize = (int) ((float) memLimitMB / PAGE_MEMORY_DIVIDE_MB) * MIN_DUMP_PAGE;
+        int pageSize = (int) ((float) memLimitMb / PAGE_MEMORY_DIVIDE_MB) * MIN_DUMP_PAGE;
         pageSize = Math.max(pageSize, MIN_DUMP_PAGE);
         pageSize = Math.min(pageSize, MAX_DUMP_PAGE);
-        LOGGER.info("All dump page size is set to {} according to mem limit {} MB", pageSize, memLimitMB);
+        LOGGER.info("All dump page size is set to {} according to mem limit {} MB", pageSize,
+            memLimitMb);
         return pageSize;
     }
     
-    public static long getMemLimitMB() {
+    public static long getMemLimitMb() {
         Optional<Long> memoryLimit = findMemoryLimitFromFile();
         if (memoryLimit.isPresent()) {
             return memoryLimit.get();
@@ -358,10 +397,11 @@ public class PropertyUtil implements ApplicationContextInitializer<ConfigurableA
     private static Optional<Long> findMemoryLimitFromFile() {
         if (limitMemoryFile == null) {
             limitMemoryFile = EnvUtil.getProperty("memory_limit_file_path",
-                    "/sys/fs/cgroup/memory/memory.limit_in_bytes");
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes");
         }
         File file = new File(limitMemoryFile);
-        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+        try (BufferedReader reader =
+            Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
             long memoryLimit = Long.parseLong(reader.readLine().trim());
             return Optional.of(memoryLimit / 1024L / 1024L);
         } catch (IOException | NumberFormatException ignored) {

@@ -18,18 +18,18 @@ package com.alibaba.nacos.api.config.remote.response;
 
 import com.alibaba.nacos.api.remote.response.ResponseCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class ConfigChangeBatchListenResponseTest extends BasedConfigResponseTest {
+class ConfigChangeBatchListenResponseTest extends BasedConfigResponseTest {
     
     ConfigChangeBatchListenResponse configChangeBatchListenResponse;
     
-    @Before
-    public void before() {
+    @BeforeEach
+    void before() {
         configChangeBatchListenResponse = new ConfigChangeBatchListenResponse();
         requestId = injectResponseUuId(configChangeBatchListenResponse);
         configChangeBatchListenResponse.addChangeConfig(DATA_ID, GROUP, TENANT);
@@ -44,14 +44,15 @@ public class ConfigChangeBatchListenResponseTest extends BasedConfigResponseTest
         assertTrue(json.contains("\"resultCode\":" + ResponseCode.SUCCESS.getCode()));
         assertTrue(json.contains("\"errorCode\":0"));
         assertTrue(json.contains(
-                "\"changedConfigs\":[{\"dataId\":\"test_data\",\"group\":\"group\",\"tenant\":\"test_tenant\"}]"));
+            "\"changedConfigs\":[{\"dataId\":\"test_data\",\"group\":\"group\",\"tenant\":\"test_tenant\"}]"));
     }
     
     @Override
     @Test
     public void testSerializeFailResponse() throws JsonProcessingException {
-        ConfigChangeBatchListenResponse configChangeBatchListenResponse = ConfigChangeBatchListenResponse
-                .buildFailResponse("Fail");
+        ConfigChangeBatchListenResponse configChangeBatchListenResponse =
+            ConfigChangeBatchListenResponse.buildFailResponse(
+                "Fail");
         String json = mapper.writeValueAsString(configChangeBatchListenResponse);
         assertTrue(json.contains("\"resultCode\":" + ResponseCode.FAIL.getCode()));
         assertTrue(json.contains("\"errorCode\":0"));
@@ -62,9 +63,11 @@ public class ConfigChangeBatchListenResponseTest extends BasedConfigResponseTest
     @Override
     @Test
     public void testDeserialize() throws JsonProcessingException {
-        String json = "{\"resultCode\":200,\"errorCode\":0,\"requestId\":\"061e36b0-c7bd-4fd0-950c-73b13ca1cb2f\","
+        String json =
+            "{\"resultCode\":200,\"errorCode\":0,\"requestId\":\"061e36b0-c7bd-4fd0-950c-73b13ca1cb2f\","
                 + "\"changedConfigs\":[{\"group\":\"group\",\"dataId\":\"test_data\",\"tenant\":\"test_tenant\"}],\"success\":true}";
-        ConfigChangeBatchListenResponse actual = mapper.readValue(json, ConfigChangeBatchListenResponse.class);
+        ConfigChangeBatchListenResponse actual =
+            mapper.readValue(json, ConfigChangeBatchListenResponse.class);
         assertTrue(actual.isSuccess());
         assertEquals(ResponseCode.SUCCESS.getCode(), actual.getResultCode());
         assertEquals("061e36b0-c7bd-4fd0-950c-73b13ca1cb2f", actual.getRequestId());
@@ -72,6 +75,6 @@ public class ConfigChangeBatchListenResponseTest extends BasedConfigResponseTest
         assertEquals(GROUP, actual.getChangedConfigs().get(0).getGroup());
         assertEquals(DATA_ID, actual.getChangedConfigs().get(0).getDataId());
         assertEquals("ConfigContext{group='group', dataId='test_data', tenant='test_tenant'}",
-                actual.getChangedConfigs().get(0).toString());
+            actual.getChangedConfigs().get(0).toString());
     }
 }

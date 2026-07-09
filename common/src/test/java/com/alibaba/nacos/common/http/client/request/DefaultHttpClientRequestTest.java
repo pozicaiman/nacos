@@ -23,40 +23,41 @@ import com.alibaba.nacos.common.http.param.Header;
 import com.alibaba.nacos.common.http.param.MediaType;
 import com.alibaba.nacos.common.http.param.Query;
 import com.alibaba.nacos.common.model.RequestHttpEntity;
-import org.apache.http.HttpEntityEnclosingRequest;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.apache.hc.client5.http.async.methods.SimpleHttpResponse;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.UrlEncodedFormEntity;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.core5.http.io.HttpClientResponseHandler;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
-public class DefaultHttpClientRequestTest {
+@ExtendWith(MockitoExtension.class)
+class DefaultHttpClientRequestTest {
+    
+    DefaultHttpClientRequest httpClientRequest;
     
     @Mock
     private CloseableHttpClient client;
     
     @Mock
-    private CloseableHttpResponse response;
+    private SimpleHttpResponse response;
     
     private RequestConfig defaultConfig;
-    
-    DefaultHttpClientRequest httpClientRequest;
     
     private boolean isForm;
     
@@ -64,35 +65,33 @@ public class DefaultHttpClientRequestTest {
     
     private URI uri;
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         defaultConfig = RequestConfig.DEFAULT;
         httpClientRequest = new DefaultHttpClientRequest(client, defaultConfig);
         when(client.execute(argThat(httpUriRequest -> {
-            HttpEntityEnclosingRequest entityRequest = (HttpEntityEnclosingRequest) httpUriRequest;
-            boolean result = isForm == (entityRequest.getEntity() instanceof UrlEncodedFormEntity);
-            HttpRequestBase baseHttpRequest = (HttpRequestBase) httpUriRequest;
+            boolean result = isForm == (httpUriRequest.getEntity() instanceof UrlEncodedFormEntity);
+            HttpUriRequestBase baseHttpRequest = (HttpUriRequestBase) httpUriRequest;
             if (withConfig) {
                 result &= null != baseHttpRequest.getConfig();
             }
             return result;
-        }))).thenReturn(response);
+        }), any(HttpClientResponseHandler.class))).thenReturn(response);
         uri = URI.create("http://127.0.0.1:8080");
-        
     }
     
-    @After
-    public void tearDown() throws Exception {
+    @AfterEach
+    void tearDown() throws Exception {
         isForm = false;
         withConfig = false;
         httpClientRequest.close();
     }
     
     @Test
-    public void testExecuteForFormWithoutConfig() throws Exception {
+    void testExecuteForFormWithoutConfig() throws Exception {
         isForm = true;
-        Header header = Header.newInstance()
-                .addParam(HttpHeaderConsts.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED);
+        Header header = Header.newInstance().addParam(HttpHeaderConsts.CONTENT_TYPE,
+            MediaType.APPLICATION_FORM_URLENCODED);
         Map<String, String> body = new HashMap<>();
         body.put("test", "test");
         RequestHttpEntity httpEntity = new RequestHttpEntity(header, Query.EMPTY, body);
@@ -101,31 +100,31 @@ public class DefaultHttpClientRequestTest {
     }
     
     @Test
-    public void testExecuteForFormWithConfig() throws Exception {
+    void testExecuteForFormWithConfig() throws Exception {
         isForm = true;
         withConfig = true;
-        Header header = Header.newInstance()
-                .addParam(HttpHeaderConsts.CONTENT_TYPE, MediaType.APPLICATION_FORM_URLENCODED);
+        Header header = Header.newInstance().addParam(HttpHeaderConsts.CONTENT_TYPE,
+            MediaType.APPLICATION_FORM_URLENCODED);
         Map<String, String> body = new HashMap<>();
         body.put("test", "test");
-        RequestHttpEntity httpEntity = new RequestHttpEntity(HttpClientConfig.builder().build(), header, Query.EMPTY,
-                body);
+        RequestHttpEntity httpEntity =
+            new RequestHttpEntity(HttpClientConfig.builder().build(), header, Query.EMPTY, body);
         HttpClientResponse actual = httpClientRequest.execute(uri, "PUT", httpEntity);
         assertEquals(response, getActualResponse(actual));
     }
     
     @Test
-    public void testExecuteForOther() throws Exception {
+    void testExecuteForOther() throws Exception {
         Header header = Header.newInstance();
         RequestHttpEntity httpEntity = new RequestHttpEntity(header, Query.EMPTY, "body");
         HttpClientResponse actual = httpClientRequest.execute(uri, "PUT", httpEntity);
         assertEquals(response, getActualResponse(actual));
     }
     
-    private CloseableHttpResponse getActualResponse(HttpClientResponse actual)
-            throws IllegalAccessException, NoSuchFieldException {
+    private SimpleHttpResponse getActualResponse(HttpClientResponse actual)
+        throws IllegalAccessException, NoSuchFieldException {
         Field field = actual.getClass().getDeclaredField("response");
         field.setAccessible(true);
-        return (CloseableHttpResponse) field.get(actual);
+        return (SimpleHttpResponse) field.get(actual);
     }
 }

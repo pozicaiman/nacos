@@ -18,20 +18,24 @@ package com.alibaba.nacos.client.naming.backups;
 
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
+import com.alibaba.nacos.client.naming.cache.InstancesDiffer;
 import com.alibaba.nacos.client.naming.cache.ServiceInfoHolder;
 import com.alibaba.nacos.client.naming.event.InstancesChangeEvent;
+import com.alibaba.nacos.client.naming.event.InstancesDiff;
 import com.alibaba.nacos.common.executor.NameThreadFactory;
 import com.alibaba.nacos.common.lifecycle.Closeable;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.spi.NacosServiceLoader;
-import com.alibaba.nacos.common.utils.JacksonUtils;
+import com.alibaba.nacos.api.utils.json.JsonUtils;
 import com.alibaba.nacos.common.utils.ThreadUtils;
 import io.micrometer.core.instrument.Gauge;
-import io.micrometer.core.instrument.Meter;
+import io.micrometer.core.instrument.ImmutableTag;
 import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Tag;
 
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
@@ -55,16 +59,18 @@ public class FailoverReactor implements Closeable {
     
     private final ScheduledExecutorService executorService;
     
+    private final InstancesDiffer instancesDiffer;
+    
     private FailoverDataSource failoverDataSource;
     
     private String notifierEventScope;
     
-    private Map<String, Meter> meterMap = new HashMap<>(10);
-    
     public FailoverReactor(ServiceInfoHolder serviceInfoHolder, String notifierEventScope) {
         this.serviceInfoHolder = serviceInfoHolder;
         this.notifierEventScope = notifierEventScope;
-        Collection<FailoverDataSource> dataSources = NacosServiceLoader.load(FailoverDataSource.class);
+        this.instancesDiffer = new InstancesDiffer();
+        Collection<FailoverDataSource> dataSources =
+            NacosServiceLoader.load(FailoverDataSource.class);
         for (FailoverDataSource dataSource : dataSources) {
             failoverDataSource = dataSource;
             NAMING_LOGGER.info("FailoverDataSource type is {}", dataSource.getClass());
@@ -72,7 +78,7 @@ public class FailoverReactor implements Closeable {
         }
         // init executorService
         this.executorService = new ScheduledThreadPoolExecutor(1,
-                new NameThreadFactory("com.alibaba.nacos.naming.failover"));
+            new NameThreadFactory("com.alibaba.nacos.naming.failover"));
         this.init();
     }
     
@@ -80,7 +86,8 @@ public class FailoverReactor implements Closeable {
      * Init.
      */
     public void init() {
-        executorService.scheduleWithFixedDelay(new FailoverSwitchRefresher(), 0L, 5000L, TimeUnit.MILLISECONDS);
+        executorService.scheduleWithFixedDelay(new FailoverSwitchRefresher(), 0L, 5000L,
+            TimeUnit.MILLISECONDS);
     }
     
     class FailoverSwitchRefresher implements Runnable {
@@ -102,17 +109,21 @@ public class FailoverReactor implements Closeable {
                     for (Map.Entry<String, FailoverData> entry : failoverData.entrySet()) {
                         ServiceInfo newService = (ServiceInfo) entry.getValue().getData();
                         ServiceInfo oldService = serviceMap.get(entry.getKey());
-                        if (serviceInfoHolder.isChangedServiceInfo(oldService, newService)) {
-                            NAMING_LOGGER.info("[NA] failoverdata isChangedServiceInfo. newService:{}",
-                                    JacksonUtils.toJson(newService));
-                            NotifyCenter.publishEvent(new InstancesChangeEvent(notifierEventScope, newService.getName(),
-                                    newService.getGroupName(), newService.getClusters(), newService.getHosts()));
+                        InstancesDiff diff = instancesDiffer.doDiff(oldService, newService);
+                        if (diff.hasDifferent()) {
+                            NAMING_LOGGER.info(
+                                "[NA] failoverdata isChangedServiceInfo. newService:{}",
+                                JsonUtils.toJson(newService));
+                            NotifyCenter.publishEvent(new InstancesChangeEvent(notifierEventScope,
+                                newService.getName(),
+                                newService.getGroupName(), newService.getClusters(),
+                                newService.getHosts(), diff));
                         }
                         failoverMap.put(entry.getKey(), (ServiceInfo) entry.getValue().getData());
                     }
                     
-                    if (failoverMap.size() > 0) {
-                        failoverServiceCntMetrics(failoverMap);
+                    if (!failoverMap.isEmpty()) {
+                        failoverServiceCntMetrics();
                         serviceMap = failoverMap;
                     }
                     
@@ -126,12 +137,13 @@ public class FailoverReactor implements Closeable {
                         ServiceInfo oldService = entry.getValue();
                         ServiceInfo newService = serviceInfoMap.get(entry.getKey());
                         if (newService != null) {
-                            boolean changed = serviceInfoHolder.isChangedServiceInfo(oldService, newService);
-                            if (changed) {
+                            InstancesDiff diff = instancesDiffer.doDiff(oldService, newService);
+                            if (diff.hasDifferent()) {
                                 NotifyCenter.publishEvent(
-                                        new InstancesChangeEvent(notifierEventScope, newService.getName(),
-                                                newService.getGroupName(), newService.getClusters(),
-                                                newService.getHosts()));
+                                    new InstancesChangeEvent(notifierEventScope,
+                                        newService.getName(),
+                                        newService.getGroupName(), newService.getClusters(),
+                                        newService.getHosts(), diff));
                             }
                         }
                     }
@@ -148,6 +160,11 @@ public class FailoverReactor implements Closeable {
     
     public boolean isFailoverSwitch() {
         return failoverSwitchEnable;
+    }
+    
+    public boolean isFailoverSwitch(String serviceName) {
+        ServiceInfo serviceInfo = serviceMap.get(serviceName);
+        return failoverSwitchEnable && serviceInfo != null && serviceInfo.ipCount() > 0;
     }
     
     public ServiceInfo getService(String key) {
@@ -174,29 +191,27 @@ public class FailoverReactor implements Closeable {
         NAMING_LOGGER.info("{} do shutdown stop", className);
     }
     
-    private void failoverServiceCntMetrics(Map<String, ServiceInfo> failoverMap) {
-        try {
-            for (Map.Entry<String, ServiceInfo> entry : failoverMap.entrySet()) {
-                String serviceName = entry.getKey();
-                Gauge register = Gauge
-                        .builder("nacos_naming_client_failover_instances", failoverMap.get(serviceName).ipCount(),
-                                Integer::intValue).tag("service_name", serviceName)
-                        .description("Nacos failover data service count").register(Metrics.globalRegistry);
-                meterMap.put(serviceName, register);
+    private void failoverServiceCntMetrics() {
+        for (Map.Entry<String, ServiceInfo> entry : serviceMap.entrySet()) {
+            String serviceName = entry.getKey();
+            List<Tag> tags = new ArrayList<>();
+            tags.add(new ImmutableTag("service_name", serviceName));
+            if (Metrics.globalRegistry.find("nacos_naming_client_failover_instances").tags(tags)
+                .gauge() == null) {
+                Gauge.builder("nacos_naming_client_failover_instances",
+                    () -> serviceMap.get(serviceName).ipCount())
+                    .tags(tags).register(Metrics.globalRegistry);
             }
-        } catch (Exception e) {
-            NAMING_LOGGER.info("[NA] registerFailoverServiceCnt fail.", e);
         }
     }
     
     private void failoverServiceCntMetricsClear() {
-        try {
-            for (Map.Entry<String, Meter> entry : meterMap.entrySet()) {
-                Metrics.globalRegistry.remove(entry.getValue());
+        for (Map.Entry<String, ServiceInfo> entry : serviceMap.entrySet()) {
+            Gauge gauge = Metrics.globalRegistry.find("nacos_naming_client_failover_instances")
+                .tag("service_name", entry.getKey()).gauge();
+            if (gauge != null) {
+                Metrics.globalRegistry.remove(gauge);
             }
-            meterMap.clear();
-        } catch (Exception e) {
-            NAMING_LOGGER.info("[NA] registerFailoverServiceCnt fail.", e);
         }
     }
 }

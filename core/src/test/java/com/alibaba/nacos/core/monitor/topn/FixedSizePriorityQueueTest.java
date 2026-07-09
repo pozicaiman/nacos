@@ -16,28 +16,31 @@
 
 package com.alibaba.nacos.core.monitor.topn;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class FixedSizePriorityQueueTest {
+class FixedSizePriorityQueueTest {
     
     @Test
-    public void testOfferEmpty() {
-        FixedSizePriorityQueue<Integer> queue = new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
+    void testOfferEmpty() {
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
         List<Integer> list = queue.toList();
         assertTrue(list.isEmpty());
     }
     
     @Test
-    public void testOfferLessThanSize() {
-        FixedSizePriorityQueue<Integer> queue = new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
+    void testOfferLessThanSize() {
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
         for (int i = 0; i < 5; i++) {
             queue.offer(i);
         }
@@ -49,8 +52,9 @@ public class FixedSizePriorityQueueTest {
     }
     
     @Test
-    public void testOfferMoreThanSizeWithIncreasing() {
-        FixedSizePriorityQueue<Integer> queue = new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
+    void testOfferMoreThanSizeWithIncreasing() {
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
         for (int i = 0; i < 15; i++) {
             queue.offer(i);
         }
@@ -62,8 +66,9 @@ public class FixedSizePriorityQueueTest {
     }
     
     @Test
-    public void testOfferMoreThanSizeWithDecreasing() {
-        FixedSizePriorityQueue<Integer> queue = new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
+    void testOfferMoreThanSizeWithDecreasing() {
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
         for (int i = 14; i > 0; i--) {
             queue.offer(i);
         }
@@ -75,18 +80,35 @@ public class FixedSizePriorityQueueTest {
     }
     
     @Test
-    public void testOfferMoreThanSizeWithShuffle() {
+    void testOfferMoreThanSizeWithShuffle() {
         List<Integer> testCase = new ArrayList<>(50);
         for (int i = 0; i < 50; i++) {
             testCase.add(i);
         }
         Collections.shuffle(testCase);
-        FixedSizePriorityQueue<Integer> queue = new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(10, Comparator.<Integer>naturalOrder());
         testCase.forEach(queue::offer);
         List<Integer> list = queue.toList();
         assertEquals(10, list.size());
         for (int i = 49; i > 39; i--) {
             assertTrue(list.contains(i));
         }
+    }
+    
+    @Test
+    void testOfferWhenFullAndElementNotBiggerThanMinIsIgnored() {
+        FixedSizePriorityQueue<Integer> queue =
+            new FixedSizePriorityQueue<>(3, Comparator.<Integer>naturalOrder());
+        queue.offer(10);
+        queue.offer(20);
+        queue.offer(30);
+        queue.offer(5);
+        List<Integer> list = queue.toList();
+        assertEquals(3, list.size());
+        assertTrue(list.contains(10));
+        assertTrue(list.contains(20));
+        assertTrue(list.contains(30));
+        assertFalse(list.contains(5));
     }
 }

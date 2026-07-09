@@ -17,21 +17,22 @@
 package com.alibaba.nacos.sys.env;
 
 import com.alibaba.nacos.common.utils.VersionUtils;
+import com.alibaba.nacos.sys.module.AbstractServerModuleStateBuilder;
 import com.alibaba.nacos.sys.module.ModuleState;
-import com.alibaba.nacos.sys.module.ModuleStateBuilder;
 
 /**
  * Module state builder for env module.
  *
  * @author xiweng.yy
  */
-public class EnvModuleStateBuilder implements ModuleStateBuilder {
+public class EnvModuleStateBuilder extends AbstractServerModuleStateBuilder {
     
     @Override
     public ModuleState build() {
         ModuleState state = new ModuleState(Constants.SYS_MODULE);
         state.newState(Constants.STARTUP_MODE_STATE,
-                EnvUtil.getStandaloneMode() ? EnvUtil.STANDALONE_MODE_ALONE : EnvUtil.STANDALONE_MODE_CLUSTER);
+            EnvUtil.getStandaloneMode() ? EnvUtil.STANDALONE_MODE_ALONE
+                : EnvUtil.STANDALONE_MODE_CLUSTER);
         state.newState(Constants.FUNCTION_MODE_STATE, EnvUtil.getFunctionMode());
         state.newState(Constants.NACOS_VERSION, VersionUtils.version);
         

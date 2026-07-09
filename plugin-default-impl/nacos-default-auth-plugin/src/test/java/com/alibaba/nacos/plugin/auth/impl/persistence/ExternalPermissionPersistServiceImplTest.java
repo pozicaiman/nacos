@@ -19,25 +19,34 @@ package com.alibaba.nacos.plugin.auth.impl.persistence;
 import com.alibaba.nacos.persistence.configuration.DatasourceConfiguration;
 import com.alibaba.nacos.persistence.datasource.DataSourceService;
 import com.alibaba.nacos.persistence.datasource.DynamicDataSource;
-import com.alibaba.nacos.persistence.model.Page;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import com.alibaba.nacos.api.model.Page;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
+import org.springframework.jdbc.CannotGetJdbcConnectionException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Field;
+import java.util.Collections;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-@RunWith(MockitoJUnitRunner.class)
-public class ExternalPermissionPersistServiceImplTest {
+@ExtendWith(MockitoExtension.class)
+// todo remove this
+@MockitoSettings(strictness = Strictness.LENIENT)
+class ExternalPermissionPersistServiceImplTest {
     
     @Mock
     private JdbcTemplate jdbcTemplate;
@@ -51,8 +60,8 @@ public class ExternalPermissionPersistServiceImplTest {
     
     private ExternalPermissionPersistServiceImpl externalPermissionPersistService;
     
-    @Before
-    public void setUp() throws Exception {
+    @BeforeEach
+    void setUp() throws Exception {
         externalPermissionPersistService = new ExternalPermissionPersistServiceImpl();
         when(jdbcTemplate.queryForObject(any(), any(), eq(Integer.class))).thenReturn(0);
         when(dataSourceService.getJdbcTemplate()).thenReturn(jdbcTemplate);
@@ -60,13 +69,14 @@ public class ExternalPermissionPersistServiceImplTest {
         DatasourceConfiguration.setEmbeddedStorage(false);
         Field datasourceField = DynamicDataSource.class.getDeclaredField("basicDataSourceService");
         datasourceField.setAccessible(true);
-        dataSourceServiceCache = (DataSourceService) datasourceField.get(DynamicDataSource.getInstance());
+        dataSourceServiceCache =
+            (DataSourceService) datasourceField.get(DynamicDataSource.getInstance());
         datasourceField.set(DynamicDataSource.getInstance(), dataSourceService);
         externalPermissionPersistService.init();
     }
     
-    @After
-    public void tearDown() throws NoSuchFieldException, IllegalAccessException {
+    @AfterEach
+    void tearDown() throws NoSuchFieldException, IllegalAccessException {
         DatasourceConfiguration.setEmbeddedStorage(embeddedStorageCache);
         Field datasourceField = DynamicDataSource.class.getDeclaredField("basicDataSourceService");
         datasourceField.setAccessible(true);
@@ -74,13 +84,13 @@ public class ExternalPermissionPersistServiceImplTest {
     }
     
     @Test
-    public void testGetPermissions() {
+    void testGetPermissions() {
         Page<PermissionInfo> role = externalPermissionPersistService.getPermissions("role", 1, 10);
-        Assert.assertNotNull(role);
+        assertNotNull(role);
     }
     
     @Test
-    public void testAddPermission() {
+    void testAddPermission() {
         String sql = "INSERT INTO permissions (role, resource, action) VALUES (?, ?, ?)";
         externalPermissionPersistService.addPermission("role", "resource", "action");
         
@@ -88,10 +98,90 @@ public class ExternalPermissionPersistServiceImplTest {
     }
     
     @Test
-    public void testDeletePermission() {
+    void testDeletePermission() {
         String sql = "DELETE FROM permissions WHERE role=? AND resource=? AND action=?";
         externalPermissionPersistService.deletePermission("role", "resource", "action");
         
         Mockito.verify(jdbcTemplate).update(sql, "role", "resource", "action");
+    }
+    
+    @Test
+    void testBlankRoleAndFindLikeReturnEmptyPageWhenHelperReturnsNull() {
+        AuthPaginationHelper<PermissionInfo> helper = Mockito.mock(AuthPaginationHelper.class);
+        ExternalPermissionPersistServiceImpl service = serviceWithHelper(helper);
+        when(helper.fetchPage(any(), any(), any(), eq(1), eq(10), any())).thenReturn(null);
+        
+        Page<PermissionInfo> permissions = service.getPermissions("", 1, 10);
+        Page<PermissionInfo> found = service.findPermissionsLike4Page("ro_le*", 1, 10);
+        
+        assertEquals(0, permissions.getTotalCount());
+        assertEquals(Collections.emptyList(), permissions.getPageItems());
+        assertEquals(0, found.getTotalCount());
+        assertEquals(Collections.emptyList(), found.getPageItems());
+        assertEquals("ro\\_le%", service.generateLikeArgument("ro_le*"));
+        assertEquals("plain", service.generateLikeArgument("plain"));
+    }
+    
+    @Test
+    void testFindPermissionsLikeReturnsHelperPage() {
+        PermissionInfo permissionInfo = new PermissionInfo();
+        permissionInfo.setRole("role");
+        permissionInfo.setResource("resource");
+        permissionInfo.setAction("action");
+        Page<PermissionInfo> page = new Page<>();
+        page.setPageItems(Collections.singletonList(permissionInfo));
+        page.setTotalCount(1);
+        AuthPaginationHelper<PermissionInfo> helper = Mockito.mock(AuthPaginationHelper.class);
+        ExternalPermissionPersistServiceImpl service = serviceWithHelper(helper);
+        when(helper.fetchPage(any(), any(), any(), eq(1), eq(10), any())).thenReturn(page);
+        
+        assertSame(page, service.findPermissionsLike4Page("", 1, 10));
+    }
+    
+    @Test
+    void testConnectionExceptionsAreRethrown() {
+        CannotGetJdbcConnectionException addException =
+            new CannotGetJdbcConnectionException("add");
+        when(
+            jdbcTemplate.update("INSERT INTO permissions (role, resource, action) VALUES (?, ?, ?)",
+                "role", "resource", "action"))
+            .thenThrow(addException);
+        assertSame(addException, assertThrows(CannotGetJdbcConnectionException.class,
+            () -> externalPermissionPersistService.addPermission("role", "resource", "action")));
+        
+        CannotGetJdbcConnectionException deleteException =
+            new CannotGetJdbcConnectionException("delete");
+        when(jdbcTemplate.update("DELETE FROM permissions WHERE role=? AND resource=? AND action=?",
+            "role", "resource", "action")).thenThrow(deleteException);
+        assertSame(deleteException, assertThrows(CannotGetJdbcConnectionException.class,
+            () -> externalPermissionPersistService.deletePermission("role", "resource",
+                "action")));
+        
+        AuthPaginationHelper<PermissionInfo> helper = Mockito.mock(AuthPaginationHelper.class);
+        ExternalPermissionPersistServiceImpl service = serviceWithHelper(helper);
+        CannotGetJdbcConnectionException getException =
+            new CannotGetJdbcConnectionException("get");
+        when(helper.fetchPage(any(), any(), any(), eq(1), eq(10), any())).thenThrow(getException);
+        assertSame(getException, assertThrows(CannotGetJdbcConnectionException.class,
+            () -> service.getPermissions("role", 1, 10)));
+        
+        CannotGetJdbcConnectionException findException =
+            new CannotGetJdbcConnectionException("find");
+        when(helper.fetchPage(any(), any(), any(), eq(2), eq(20), any()))
+            .thenThrow(findException);
+        assertSame(findException, assertThrows(CannotGetJdbcConnectionException.class,
+            () -> service.findPermissionsLike4Page("role", 2, 20)));
+    }
+    
+    private ExternalPermissionPersistServiceImpl serviceWithHelper(
+        AuthPaginationHelper<PermissionInfo> helper) {
+        return new ExternalPermissionPersistServiceImpl() {
+            
+            @Override
+            @SuppressWarnings("unchecked")
+            public <E> AuthPaginationHelper<E> createPaginationHelper() {
+                return (AuthPaginationHelper<E>) helper;
+            }
+        };
     }
 }

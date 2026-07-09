@@ -25,7 +25,6 @@ import java.util.List;
  *
  * @author xiweng.yy
  */
-@SuppressWarnings("PMD.UndefineMagicConstantRule")
 public class FixedSizePriorityQueue<T> {
     
     private Object[] elements;
@@ -76,7 +75,8 @@ public class FixedSizePriorityQueue<T> {
             int leftChild = index * 2 + 1;
             int rightChild = index * 2 + 2;
             int minChildIndex = leftChild;
-            if (rightChild < size && comparator.compare((T) elements[rightChild], (T) elements[leftChild]) < 0) {
+            if (rightChild < size
+                && comparator.compare((T) elements[rightChild], (T) elements[leftChild]) < 0) {
                 minChildIndex = rightChild;
             }
             if (comparator.compare((T) elements[index], (T) elements[minChildIndex]) < 0) {

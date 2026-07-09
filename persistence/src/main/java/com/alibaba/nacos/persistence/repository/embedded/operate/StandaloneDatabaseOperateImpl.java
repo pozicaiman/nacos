@@ -24,7 +24,10 @@ import com.alibaba.nacos.persistence.configuration.condition.ConditionStandalone
 import com.alibaba.nacos.persistence.datasource.DataSourceService;
 import com.alibaba.nacos.persistence.datasource.DynamicDataSource;
 import com.alibaba.nacos.persistence.repository.embedded.sql.ModifyRequest;
+import com.alibaba.nacos.persistence.repository.embedded.sql.limiter.SqlLimiter;
+import com.alibaba.nacos.persistence.repository.embedded.sql.limiter.SqlTypeLimiter;
 import com.alibaba.nacos.sys.utils.DiskUtils;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Conditional;
@@ -33,7 +36,6 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import javax.annotation.PostConstruct;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -52,11 +54,18 @@ import java.util.stream.Collectors;
 @Component
 public class StandaloneDatabaseOperateImpl implements BaseDatabaseOperate {
     
-    private static final Logger LOGGER = LoggerFactory.getLogger(StandaloneDatabaseOperateImpl.class);
+    private static final Logger LOGGER =
+        LoggerFactory.getLogger(StandaloneDatabaseOperateImpl.class);
+    
+    private final SqlLimiter sqlLimiter;
     
     private JdbcTemplate jdbcTemplate;
     
     private TransactionTemplate transactionTemplate;
+    
+    public StandaloneDatabaseOperateImpl() {
+        this.sqlLimiter = new SqlTypeLimiter();
+    }
     
     @PostConstruct
     protected void init() {
@@ -107,6 +116,7 @@ public class StandaloneDatabaseOperateImpl implements BaseDatabaseOperate {
                 while (iterator.hasNext()) {
                     String sql = iterator.next();
                     if (StringUtils.isNotBlank(sql)) {
+                        sqlLimiter.doLimit(sql);
                         batchUpdate.add(sql);
                     }
                     if (batchUpdate.size() == batchSize || !iterator.hasNext()) {
@@ -115,7 +125,8 @@ public class StandaloneDatabaseOperateImpl implements BaseDatabaseOperate {
                             request.setSql(s);
                             return request;
                         }).collect(Collectors.toList());
-                        futures.add(CompletableFuture.runAsync(() -> results.add(doDataImport(jdbcTemplate, sqls))));
+                        futures.add(CompletableFuture
+                            .runAsync(() -> results.add(doDataImport(jdbcTemplate, sqls))));
                         batchUpdate.clear();
                     }
                 }
@@ -126,14 +137,16 @@ public class StandaloneDatabaseOperateImpl implements BaseDatabaseOperate {
                 }
                 return RestResult.<String>builder().withCode(code).withData("").build();
             } catch (Throwable ex) {
-                LOGGER.error("An exception occurred when external data was imported into Derby : ", ex);
+                LOGGER.error("An exception occurred when external data was imported into Derby : ",
+                    ex);
                 return RestResultUtils.failed(ex.getMessage());
             }
         });
     }
     
     @Override
-    public Boolean update(List<ModifyRequest> modifyRequests, BiConsumer<Boolean, Throwable> consumer) {
+    public Boolean update(List<ModifyRequest> modifyRequests,
+        BiConsumer<Boolean, Throwable> consumer) {
         return update(transactionTemplate, jdbcTemplate, modifyRequests, consumer);
     }
     

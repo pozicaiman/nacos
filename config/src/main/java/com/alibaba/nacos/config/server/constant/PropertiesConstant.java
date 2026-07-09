@@ -63,5 +63,6 @@ public class PropertiesConstant {
     
     public static final String DUMP_CHANGE_WORKER_INTERVAL = "dumpChangeWorkerInterval";
     
+    public static final String CONFIG_RENTENTION_DAYS = "nacos.config.retention.days";
     
 }

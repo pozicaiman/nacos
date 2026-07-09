@@ -26,7 +26,7 @@ import com.alibaba.nacos.core.paramcheck.AbstractHttpParamExtractor;
 import com.alibaba.nacos.naming.misc.UtilsAndCommons;
 import com.fasterxml.jackson.core.type.TypeReference;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,7 +43,8 @@ public class NamingInstanceMetadataBatchHttpParamExtractor extends AbstractHttpP
         String serviceName = request.getParameter("serviceName");
         String groupName = request.getParameter("groupName");
         String groupServiceName = serviceName;
-        if (StringUtils.isNotBlank(groupServiceName) && groupServiceName.contains(Constants.SERVICE_INFO_SPLITER)) {
+        if (StringUtils.isNotBlank(groupServiceName)
+            && groupServiceName.contains(Constants.SERVICE_INFO_SPLITER)) {
             String[] splits = groupServiceName.split(Constants.SERVICE_INFO_SPLITER, 2);
             groupName = splits[0];
             serviceName = splits[1];
@@ -57,8 +58,9 @@ public class NamingInstanceMetadataBatchHttpParamExtractor extends AbstractHttpP
         
         String instances = request.getParameter("instances");
         if (StringUtils.isNotBlank(instances)) {
-            List<Instance> targetInstances = JacksonUtils.toObj(instances, new TypeReference<List<Instance>>() {
-            });
+            List<Instance> targetInstances =
+                JacksonUtils.toObj(instances, new TypeReference<List<Instance>>() {
+                });
             for (Instance instance : targetInstances) {
                 ParamInfo instanceParamInfo = new ParamInfo();
                 instanceParamInfo.setIp(instance.getIp());

@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Collections;
+import java.util.function.Consumer;
 
 /**
  * pagination factory.
@@ -32,11 +34,9 @@ import java.util.Map;
  */
 public class PageHandlerAdapterFactory {
     
-    private static PageHandlerAdapterFactory instance;
+    private final List<PageHandlerAdapter> handlerAdapters;
     
-    private List<PageHandlerAdapter> handlerAdapters;
-    
-    private Map<String, PageHandlerAdapter> handlerAdapterMap;
+    private final Map<String, PageHandlerAdapter> handlerAdapterMap;
     
     public List<PageHandlerAdapter> getHandlerAdapters() {
         return handlerAdapters;
@@ -47,38 +47,29 @@ public class PageHandlerAdapterFactory {
     }
     
     private PageHandlerAdapterFactory() {
-        handlerAdapters = new ArrayList<>(3);
-        handlerAdapterMap = new HashMap<>(3);
-        initHandlerAdapters();
+        List<PageHandlerAdapter> handlerAdapters = new ArrayList<>(3);
+        Map<String, PageHandlerAdapter> handlerAdapterMap = new HashMap<>(3);
+        Consumer<PageHandlerAdapter> addHandlerAdapter = handlerAdapter -> {
+            handlerAdapters.add(handlerAdapter);
+            handlerAdapterMap.put(handlerAdapter.getClass().getName(), handlerAdapter);
+        };
+        // MysqlPageHandlerAdapter
+        addHandlerAdapter.accept(new MysqlPageHandlerAdapter());
+        // DerbyPageHandlerAdapter
+        addHandlerAdapter.accept(new DerbyPageHandlerAdapter());
+        // DefaultPageHandlerAdapter
+        addHandlerAdapter.accept(new DefaultPageHandlerAdapter());
+        this.handlerAdapters = Collections.unmodifiableList(handlerAdapters);
+        this.handlerAdapterMap = Collections.unmodifiableMap(handlerAdapterMap);
+    }
+    
+    private static final class InstanceHolder {
+        
+        static final PageHandlerAdapterFactory INSTANCE = new PageHandlerAdapterFactory();
     }
     
     public static PageHandlerAdapterFactory getInstance() {
-        if (instance == null) {
-            synchronized (PageHandlerAdapterFactory.class) {
-                if (instance == null) {
-                    instance = new PageHandlerAdapterFactory();
-                }
-            }
-        }
-        return instance;
-    }
-    
-    /**
-     * init handler adapters.
-     */
-    private void initHandlerAdapters() {
-        // MysqlPageHandlerAdapter
-        addHandlerAdapter(new MysqlPageHandlerAdapter());
-        // DerbyPageHandlerAdapter
-        addHandlerAdapter(new DerbyPageHandlerAdapter());
-        // DefaultPageHandlerAdapter
-        addHandlerAdapter(new DefaultPageHandlerAdapter());
-    }
-    
-    private void addHandlerAdapter(PageHandlerAdapter handlerAdapter) {
-        handlerAdapters.add(handlerAdapter);
-        handlerAdapterMap.put(handlerAdapter.getClass().getName(), handlerAdapter);
+        return InstanceHolder.INSTANCE;
     }
     
 }
-

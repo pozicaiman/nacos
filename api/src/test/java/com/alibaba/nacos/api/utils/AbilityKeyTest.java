@@ -18,102 +18,84 @@ package com.alibaba.nacos.api.utils;
 
 import com.alibaba.nacos.api.ability.constant.AbilityKey;
 import com.alibaba.nacos.api.ability.constant.AbilityMode;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/**.
+/**
+ * .
+ *
  * @author Daydreamer
  * @description Ability key test
  * @date 2022/9/8 12:27
  **/
-public class AbilityKeyTest {
+class AbilityKeyTest {
     
     @Test
-    public void testMapStr() {
+    void testMapStr() {
         Map<AbilityKey, Boolean> enumMap = new HashMap<>();
         Map<String, Boolean> stringBooleanMap = AbilityKey.mapStr(enumMap);
         assertEquals(0, stringBooleanMap.size());
         
-        enumMap.put(AbilityKey.SERVER_TEST_1, true);
-        enumMap.put(AbilityKey.SERVER_TEST_2, false);
-        enumMap.put(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC, false);
+        enumMap.put(AbilityKey.SERVER_FUZZY_WATCH, true);
+        enumMap.put(AbilityKey.SERVER_DISTRIBUTED_LOCK, false);
+        enumMap.put(AbilityKey.SERVER_PERSISTENT_INSTANCE_BY_GRPC, false);
+        enumMap.put(AbilityKey.SERVER_MCP_REGISTRY, false);
+        enumMap.put(AbilityKey.SERVER_AGENT_REGISTRY, false);
+        enumMap.put(AbilityKey.SERVER_AGENT_CARD_V1, false);
         stringBooleanMap = AbilityKey.mapStr(enumMap);
-        assertEquals(3, stringBooleanMap.size());
-        Assert.assertTrue(stringBooleanMap.get(AbilityKey.SERVER_TEST_1.getName()));
-        Assert.assertFalse(stringBooleanMap.get(AbilityKey.SERVER_TEST_2.getName()));
-        Assert.assertFalse(stringBooleanMap.get(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC.getName()));
+        assertEquals(6, stringBooleanMap.size());
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_FUZZY_WATCH.getName()));
+        assertFalse(stringBooleanMap.get(AbilityKey.SERVER_DISTRIBUTED_LOCK.getName()));
+        assertFalse(stringBooleanMap.get(AbilityKey.SERVER_PERSISTENT_INSTANCE_BY_GRPC.getName()));
+        assertFalse(stringBooleanMap.get(AbilityKey.SERVER_MCP_REGISTRY.getName()));
+        assertFalse(stringBooleanMap.get(AbilityKey.SERVER_AGENT_REGISTRY.getName()));
+        assertFalse(stringBooleanMap.get(AbilityKey.SERVER_AGENT_CARD_V1.getName()));
         
-        enumMap.put(AbilityKey.SERVER_TEST_2, true);
-        enumMap.put(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC, true);
+        enumMap.put(AbilityKey.SERVER_DISTRIBUTED_LOCK, true);
+        enumMap.put(AbilityKey.SERVER_PERSISTENT_INSTANCE_BY_GRPC, true);
+        enumMap.put(AbilityKey.SERVER_MCP_REGISTRY, true);
+        enumMap.put(AbilityKey.SERVER_AGENT_REGISTRY, true);
+        enumMap.put(AbilityKey.SERVER_AGENT_CARD_V1, true);
         stringBooleanMap = AbilityKey.mapStr(enumMap);
-        assertEquals(3, stringBooleanMap.size());
-        Assert.assertTrue(stringBooleanMap.get(AbilityKey.SERVER_TEST_1.getName()));
-        Assert.assertTrue(stringBooleanMap.get(AbilityKey.SERVER_TEST_2.getName()));
-        Assert.assertTrue(stringBooleanMap.get(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC.getName()));
+        assertEquals(6, stringBooleanMap.size());
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_FUZZY_WATCH.getName()));
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_DISTRIBUTED_LOCK.getName()));
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_PERSISTENT_INSTANCE_BY_GRPC.getName()));
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_MCP_REGISTRY.getName()));
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_AGENT_REGISTRY.getName()));
+        assertTrue(stringBooleanMap.get(AbilityKey.SERVER_AGENT_CARD_V1.getName()));
     }
     
     @Test
-    public void testMapEnumForEmpty() {
-        Map<AbilityKey, Boolean> actual = AbilityKey.mapEnum(AbilityMode.SERVER, Collections.emptyMap());
-        assertTrue(actual.isEmpty());
-    }
-    
-    @Test
-    public void testMapEnum() {
-        Map<String, Boolean> mapStr = new HashMap<>();
-        mapStr.put("test-no-existed", true);
-        Map<AbilityKey, Boolean> enumMap = AbilityKey.mapEnum(AbilityMode.SERVER, mapStr);
-        assertEquals(0, enumMap.size());
-        
-        mapStr.put(AbilityKey.SERVER_TEST_2.getName(), false);
-        mapStr.put(AbilityKey.SERVER_TEST_1.getName(), true);
-        mapStr.put(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC.getName(), true);
-        enumMap = AbilityKey.mapEnum(AbilityMode.SERVER, mapStr);
-        Assert.assertFalse(enumMap.get(AbilityKey.SERVER_TEST_2));
-        Assert.assertTrue(enumMap.get(AbilityKey.SERVER_TEST_1));
-        Assert.assertTrue(enumMap.get(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC));
-    
-        mapStr.clear();
-        mapStr.put(AbilityKey.SERVER_TEST_2.getName(), true);
-        mapStr.put(AbilityKey.SERVER_TEST_1.getName(), true);
-        mapStr.put(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC.getName(), true);
-        enumMap = AbilityKey.mapEnum(AbilityMode.SERVER, mapStr);
-        Assert.assertTrue(enumMap.get(AbilityKey.SERVER_TEST_2));
-        Assert.assertTrue(enumMap.get(AbilityKey.SERVER_TEST_1));
-        Assert.assertTrue(enumMap.get(AbilityKey.SERVER_SUPPORT_PERSISTENT_INSTANCE_BY_GRPC));
-        
-    }
-    
-    @Test
-    public void testGetAllValues() {
+    void testGetAllValues() {
         Collection<AbilityKey> actual = AbilityKey.getAllValues(AbilityMode.SERVER);
-        assertEquals(3, actual.size());
+        assertEquals(6, actual.size());
         actual = AbilityKey.getAllValues(AbilityMode.SDK_CLIENT);
-        assertEquals(1, actual.size());
+        assertEquals(4, actual.size());
         actual = AbilityKey.getAllValues(AbilityMode.CLUSTER_CLIENT);
         assertEquals(1, actual.size());
     }
     
     @Test
-    public void testGetAllNames() {
+    void testGetAllNames() {
         Collection<String> actual = AbilityKey.getAllNames(AbilityMode.SERVER);
-        assertEquals(3, actual.size());
+        assertEquals(6, actual.size());
         actual = AbilityKey.getAllNames(AbilityMode.SDK_CLIENT);
-        assertEquals(1, actual.size());
+        assertEquals(4, actual.size());
         actual = AbilityKey.getAllNames(AbilityMode.CLUSTER_CLIENT);
         assertEquals(1, actual.size());
     }
     
     @Test
-    public void testGetDescription() {
-        assertEquals("just for junit test", AbilityKey.SERVER_TEST_1.getDescription());
+    void testGetDescription() {
+        assertEquals("Server whether support fuzzy watch service or config",
+            AbilityKey.SERVER_FUZZY_WATCH.getDescription());
     }
 }

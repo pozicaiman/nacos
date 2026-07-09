@@ -42,7 +42,6 @@ import java.util.stream.IntStream;
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
-@SuppressWarnings("PMD.AbstractMethodOrInterfaceMethodMustUseJavadocRule")
 public interface BaseDatabaseOperate extends DatabaseOperate {
     
     Logger LOGGER = LoggerFactory.getLogger(BaseDatabaseOperate.class);
@@ -62,10 +61,12 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
         } catch (IncorrectResultSizeDataAccessException e) {
             return null;
         } catch (CannotGetJdbcConnectionException e) {
-            LOGGER.error("[db-error] can't get connection : {}", ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] can't get connection : {}",
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException : {}", ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException : {}",
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -89,8 +90,9 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
             LOGGER.error("[db-error] {}", e.toString());
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql, args,
-                    ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql,
+                args,
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -105,7 +107,8 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @param <R>          target type
      * @return R
      */
-    default <R> R queryOne(JdbcTemplate jdbcTemplate, String sql, Object[] args, RowMapper<R> mapper) {
+    default <R> R queryOne(JdbcTemplate jdbcTemplate, String sql, Object[] args,
+        RowMapper<R> mapper) {
         try {
             return jdbcTemplate.queryForObject(sql, args, mapper);
         } catch (IncorrectResultSizeDataAccessException e) {
@@ -114,8 +117,9 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
             LOGGER.error("[db-error] {}", e.toString());
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql, args,
-                    ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql,
+                args,
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -130,15 +134,17 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @param <R>          target type
      * @return result list
      */
-    default <R> List<R> queryMany(JdbcTemplate jdbcTemplate, String sql, Object[] args, RowMapper<R> mapper) {
+    default <R> List<R> queryMany(JdbcTemplate jdbcTemplate, String sql, Object[] args,
+        RowMapper<R> mapper) {
         try {
             return jdbcTemplate.query(sql, args, mapper);
         } catch (CannotGetJdbcConnectionException e) {
             LOGGER.error("[db-error] {}", e.toString());
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql, args,
-                    ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql,
+                args,
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -153,7 +159,8 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @param <R>          target type
      * @return result list
      */
-    default <R> List<R> queryMany(JdbcTemplate jdbcTemplate, String sql, Object[] args, Class<R> rClass) {
+    default <R> List<R> queryMany(JdbcTemplate jdbcTemplate, String sql, Object[] args,
+        Class<R> rClass) {
         try {
             return jdbcTemplate.queryForList(sql, args, rClass);
         } catch (IncorrectResultSizeDataAccessException e) {
@@ -162,8 +169,9 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
             LOGGER.error("[db-error] {}", e.toString());
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql, args,
-                    ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql,
+                args,
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -176,15 +184,17 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @param args         args
      * @return List&lt;Map&lt;String, Object&gt;&gt;
      */
-    default List<Map<String, Object>> queryMany(JdbcTemplate jdbcTemplate, String sql, Object[] args) {
+    default List<Map<String, Object>> queryMany(JdbcTemplate jdbcTemplate, String sql,
+        Object[] args) {
         try {
             return jdbcTemplate.queryForList(sql, args);
         } catch (CannotGetJdbcConnectionException e) {
             LOGGER.error("[db-error] {}", e.toString());
             throw e;
         } catch (DataAccessException e) {
-            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql, args,
-                    ExceptionUtil.getAllExceptionMsg(e));
+            LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", sql,
+                args,
+                ExceptionUtil.getAllExceptionMsg(e));
             throw e;
         }
     }
@@ -198,7 +208,7 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @return {@link Boolean}
      */
     default Boolean update(TransactionTemplate transactionTemplate, JdbcTemplate jdbcTemplate,
-            List<ModifyRequest> contexts) {
+        List<ModifyRequest> contexts) {
         return update(transactionTemplate, jdbcTemplate, contexts, null);
     }
     
@@ -211,7 +221,7 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @return {@link Boolean}
      */
     default Boolean update(TransactionTemplate transactionTemplate, JdbcTemplate jdbcTemplate,
-            List<ModifyRequest> contexts, BiConsumer<Boolean, Throwable> consumer) {
+        List<ModifyRequest> contexts, BiConsumer<Boolean, Throwable> consumer) {
         boolean updateResult = Boolean.FALSE;
         try {
             updateResult = transactionTemplate.execute(status -> {
@@ -226,7 +236,8 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
                         LoggerUtils.printIfDebugEnabled(LOGGER, "current args : {}", args[0]);
                         int row = jdbcTemplate.update(pair.getSql(), pair.getArgs());
                         if (rollBackOnUpdateFail && row < 1) {
-                            LoggerUtils.printIfDebugEnabled(LOGGER, "SQL update affected {} rows ", row);
+                            LoggerUtils.printIfDebugEnabled(LOGGER, "SQL update affected {} rows ",
+                                row);
                             throw new IllegalTransactionStateException("Illegal transaction");
                         }
                     });
@@ -235,22 +246,26 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
                     }
                     return Boolean.TRUE;
                 } catch (BadSqlGrammarException | DataIntegrityViolationException e) {
-                    LOGGER.error("[db-error] sql : {}, args : {}, error : {}", errSql[0], args[0], e.toString());
+                    LOGGER.error("[db-error] sql : {}, args : {}, error : {}", errSql[0], args[0],
+                        e.toString());
                     if (consumer != null) {
                         consumer.accept(Boolean.FALSE, e);
                     }
                     return Boolean.FALSE;
                 } catch (CannotGetJdbcConnectionException e) {
-                    LOGGER.error("[db-error] sql : {}, args : {}, error : {}", errSql[0], args[0], e.toString());
+                    LOGGER.error("[db-error] sql : {}, args : {}, error : {}", errSql[0], args[0],
+                        e.toString());
                     throw e;
                 } catch (DataAccessException e) {
-                    LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}", errSql[0], args[0],
-                            ExceptionUtil.getAllExceptionMsg(e));
+                    LOGGER.error("[db-error] DataAccessException sql : {}, args : {}, error : {}",
+                        errSql[0], args[0],
+                        ExceptionUtil.getAllExceptionMsg(e));
                     throw e;
                 }
             });
         } catch (IllegalTransactionStateException e) {
-            LoggerUtils.printIfDebugEnabled(LOGGER, "Roll back transaction for {} ", e.getMessage());
+            LoggerUtils.printIfDebugEnabled(LOGGER, "Roll back transaction for {} ",
+                e.getMessage());
             if (consumer != null) {
                 consumer.accept(Boolean.FALSE, e);
             }
@@ -266,7 +281,8 @@ public interface BaseDatabaseOperate extends DatabaseOperate {
      * @return {@link Boolean}
      */
     default Boolean doDataImport(JdbcTemplate template, List<ModifyRequest> requests) {
-        final String[] sql = requests.stream().map(ModifyRequest::getSql).map(DerbyUtils::insertStatementCorrection)
+        final String[] sql =
+            requests.stream().map(ModifyRequest::getSql).map(DerbyUtils::insertStatementCorrection)
                 .toArray(String[]::new);
         int[] affect = template.batchUpdate(sql);
         return IntStream.of(affect).count() == requests.size();

@@ -20,7 +20,6 @@ import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.common.notify.Event;
 import com.alibaba.nacos.common.notify.listener.Subscriber;
 import com.alibaba.nacos.config.server.model.event.ConfigDumpEvent;
-import com.alibaba.nacos.config.server.service.AggrWhitelist;
 import com.alibaba.nacos.config.server.service.ClientIpWhiteList;
 import com.alibaba.nacos.config.server.service.ConfigCacheService;
 import com.alibaba.nacos.config.server.service.SwitchService;
@@ -44,58 +43,33 @@ public class DumpConfigHandler extends Subscriber<ConfigDumpEvent> {
         final String group = event.getGroup();
         final String namespaceId = event.getNamespaceId();
         final String content = event.getContent();
-        final String type = event.getType();
         final long lastModified = event.getLastModifiedTs();
-        //beta
-        if (event.isBeta()) {
+        
+        //gray
+        if (StringUtils.isNotBlank(event.getGrayName())) {
             boolean result = false;
-            if (event.isRemove()) {
-                result = ConfigCacheService.removeBeta(dataId, group, namespaceId);
+            if (!event.isRemove()) {
+                result =
+                    ConfigCacheService.dumpGray(dataId, group, namespaceId, event.getGrayName(),
+                        event.getGrayRule(), content, lastModified, event.getEncryptedDataKey());
                 if (result) {
-                    ConfigTraceService.logDumpBetaEvent(dataId, group, namespaceId, null, lastModified,
-                            event.getHandleIp(), ConfigTraceService.DUMP_TYPE_REMOVE_OK,
-                            System.currentTimeMillis() - lastModified, 0);
+                    ConfigTraceService.logDumpGrayNameEvent(dataId, group, namespaceId,
+                        event.getGrayName(), null,
+                        lastModified, event.getHandleIp(), ConfigTraceService.DUMP_TYPE_OK,
+                        System.currentTimeMillis() - lastModified, content.length());
                 }
-                return result;
             } else {
-                result = ConfigCacheService.dumpBeta(dataId, group, namespaceId, content, lastModified,
-                        event.getBetaIps(), event.getEncryptedDataKey());
+                result =
+                    ConfigCacheService.removeGray(dataId, group, namespaceId, event.getGrayName());
                 if (result) {
-                    ConfigTraceService.logDumpBetaEvent(dataId, group, namespaceId, null, lastModified,
-                            event.getHandleIp(), ConfigTraceService.DUMP_TYPE_OK,
-                            System.currentTimeMillis() - lastModified, content.length());
+                    ConfigTraceService.logDumpGrayNameEvent(dataId, group, namespaceId,
+                        event.getGrayName(), null,
+                        lastModified, event.getHandleIp(), ConfigTraceService.DUMP_TYPE_REMOVE_OK,
+                        System.currentTimeMillis() - lastModified, 0);
                 }
             }
             
             return result;
-        }
-        
-        //tag
-        if (StringUtils.isNotBlank(event.getTag())) {
-            //
-            boolean result;
-            if (!event.isRemove()) {
-                result = ConfigCacheService.dumpTag(dataId, group, namespaceId, event.getTag(), content, lastModified,
-                        event.getEncryptedDataKey());
-                if (result) {
-                    ConfigTraceService.logDumpTagEvent(dataId, group, namespaceId, event.getTag(), null, lastModified,
-                            event.getHandleIp(), ConfigTraceService.DUMP_TYPE_OK,
-                            System.currentTimeMillis() - lastModified, content.length());
-                }
-            } else {
-                result = ConfigCacheService.removeTag(dataId, group, namespaceId, event.getTag());
-                if (result) {
-                    ConfigTraceService.logDumpTagEvent(dataId, group, namespaceId, event.getTag(), null, lastModified,
-                            event.getHandleIp(), ConfigTraceService.DUMP_TYPE_REMOVE_OK,
-                            System.currentTimeMillis() - lastModified, 0);
-                }
-            }
-            return result;
-        }
-        
-        //default
-        if (dataId.equals(AggrWhitelist.AGGRIDS_METADATA)) {
-            AggrWhitelist.load(content);
         }
         
         if (dataId.equals(ClientIpWhiteList.CLIENT_IP_WHITELIST_METADATA)) {
@@ -108,19 +82,24 @@ public class DumpConfigHandler extends Subscriber<ConfigDumpEvent> {
         
         boolean result;
         if (!event.isRemove()) {
-            result = ConfigCacheService.dump(dataId, group, namespaceId, content, lastModified, event.getType(),
-                    event.getEncryptedDataKey());
+            result = ConfigCacheService.dump(dataId, group, namespaceId, content, lastModified,
+                event.getType(),
+                event.getEncryptedDataKey());
             
             if (result) {
-                ConfigTraceService.logDumpEvent(dataId, group, namespaceId, null, lastModified, event.getHandleIp(),
-                        ConfigTraceService.DUMP_TYPE_OK, System.currentTimeMillis() - lastModified, content.length());
+                ConfigTraceService.logDumpEvent(dataId, group, namespaceId, null, lastModified,
+                    event.getHandleIp(),
+                    ConfigTraceService.DUMP_TYPE_OK, System.currentTimeMillis() - lastModified,
+                    content.length());
             }
         } else {
             result = ConfigCacheService.remove(dataId, group, namespaceId);
             
             if (result) {
-                ConfigTraceService.logDumpEvent(dataId, group, namespaceId, null, lastModified, event.getHandleIp(),
-                        ConfigTraceService.DUMP_TYPE_REMOVE_OK, System.currentTimeMillis() - lastModified, 0);
+                ConfigTraceService.logDumpEvent(dataId, group, namespaceId, null, lastModified,
+                    event.getHandleIp(),
+                    ConfigTraceService.DUMP_TYPE_REMOVE_OK,
+                    System.currentTimeMillis() - lastModified, 0);
             }
         }
         return result;

@@ -24,19 +24,21 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * ServiceInfo.
+ * Service Information with instances and without cluster information, used in data pushing and cached for nacos-client.
  *
  * @author nkorange
  * @author shizhengxing
  */
 @JsonInclude(Include.NON_NULL)
-public class ServiceInfo {
+public class ServiceInfo implements Cloneable {
     
     /**
-     * file name pattern: groupName@@name@clusters.
+     * file name pattern: groupName@@name@@clusters.
      */
     private static final int GROUP_POSITION = 0;
     
@@ -67,23 +69,23 @@ public class ServiceInfo {
     
     private String checksum = "";
     
-    private volatile boolean allIPs = false;
+    private volatile boolean allIps = false;
     
     private volatile boolean reachProtectionThreshold = false;
     
     public ServiceInfo() {
     }
     
-    public boolean isAllIPs() {
-        return allIPs;
+    public boolean isAllIps() {
+        return allIps;
     }
     
-    public void setAllIPs(boolean allIPs) {
-        this.allIPs = allIPs;
+    public void setAllIps(boolean allIps) {
+        this.allIps = allIps;
     }
     
     /**
-     * There is only one form of the key:groupName@@name@clusters. This constructor used by DiskCache.read(String) and
+     * There is only one form of the key:groupName@@name@@clusters. This constructor used by DiskCache.read(String) and
      * FailoverReactor.FailoverFileReader,you should know that 'groupName' must not be null,and 'clusters' can be null.
      */
     public ServiceInfo(final String key) {
@@ -97,7 +99,8 @@ public class ServiceInfo {
             this.name = keys[SERVICE_POSITION];
         } else {
             //defensive programming
-            throw new IllegalArgumentException("Can't parse out 'groupName',but it must not be null!");
+            throw new IllegalArgumentException(
+                "Can't parse out 'groupName',but it must not be null!");
         }
     }
     
@@ -180,7 +183,7 @@ public class ServiceInfo {
      * @return true if validate, otherwise false
      */
     public boolean validate() {
-        if (isAllIPs()) {
+        if (isAllIps()) {
             return true;
         }
         
@@ -215,12 +218,15 @@ public class ServiceInfo {
     
     @JsonIgnore
     public static String getKey(String name, String clusters) {
-        
         if (!isEmpty(clusters)) {
             return name + Constants.SERVICE_INFO_SPLITER + clusters;
         }
-        
         return name;
+    }
+    
+    @JsonIgnore
+    public String getKeyWithoutClusters() {
+        return getGroupedServiceName();
     }
     
     @JsonIgnore
@@ -274,5 +280,44 @@ public class ServiceInfo {
     
     public void setReachProtectionThreshold(boolean reachProtectionThreshold) {
         this.reachProtectionThreshold = reachProtectionThreshold;
+    }
+    
+    @Override
+    public ServiceInfo clone() {
+        ServiceInfo cloned = new ServiceInfo();
+        cloned.jsonFromServer = this.jsonFromServer;
+        cloned.name = this.name;
+        cloned.groupName = this.groupName;
+        cloned.clusters = this.clusters;
+        cloned.cacheMillis = this.cacheMillis;
+        cloned.lastRefTime = this.lastRefTime;
+        cloned.checksum = this.checksum;
+        cloned.allIps = this.allIps;
+        cloned.reachProtectionThreshold = this.reachProtectionThreshold;
+        cloned.hosts = new ArrayList<>();
+        
+        if (this.hosts != null) {
+            for (Instance host : this.hosts) {
+                Instance clonedHost = new Instance();
+                clonedHost.setInstanceId(host.getInstanceId());
+                clonedHost.setIp(host.getIp());
+                clonedHost.setPort(host.getPort());
+                clonedHost.setWeight(host.getWeight());
+                clonedHost.setHealthy(host.isHealthy());
+                clonedHost.setEnabled(host.isEnabled());
+                clonedHost.setEphemeral(host.isEphemeral());
+                clonedHost.setClusterName(host.getClusterName());
+                clonedHost.setServiceName(host.getServiceName());
+                
+                if (host.getMetadata() != null) {
+                    Map<String, String> clonedMetadata = new HashMap<>(host.getMetadata());
+                    clonedHost.setMetadata(clonedMetadata);
+                }
+                
+                cloned.hosts.add(clonedHost);
+            }
+        }
+        
+        return cloned;
     }
 }

@@ -17,22 +17,22 @@
 package com.alibaba.nacos.api.selector.context;
 
 import com.alibaba.nacos.api.naming.pojo.Instance;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-public class CmdbContextTest {
+class CmdbContextTest {
     
     @Test
-    public void testToString() {
+    void testToString() {
         CmdbContext<Instance> cmdbContext = new CmdbContext<>();
         cmdbContext.setProviders(Collections.singletonList(new CmdbContext.CmdbInstance<>()));
         cmdbContext.setConsumer(new CmdbContext.CmdbInstance<>());
         System.out.println(cmdbContext.toString());
         assertEquals(
-                "CmdbContext{consumer=CmdbInstance{entity=null, instance=null}, providers=[CmdbInstance{entity=null, instance=null}]}",
-                cmdbContext.toString());
+            "CmdbContext{consumer=CmdbInstance{entity=null, instance=null}, providers=[CmdbInstance{entity=null, instance=null}]}",
+            cmdbContext.toString());
     }
 }

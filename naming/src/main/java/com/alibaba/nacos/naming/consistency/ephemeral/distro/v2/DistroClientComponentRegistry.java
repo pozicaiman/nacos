@@ -24,9 +24,8 @@ import com.alibaba.nacos.core.distributed.distro.component.DistroTransportAgent;
 import com.alibaba.nacos.core.distributed.distro.task.DistroTaskEngineHolder;
 import com.alibaba.nacos.naming.core.v2.client.manager.ClientManager;
 import com.alibaba.nacos.naming.core.v2.client.manager.ClientManagerDelegate;
+import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
-
-import javax.annotation.PostConstruct;
 
 /**
  * Distro component registry for v2.
@@ -48,9 +47,10 @@ public class DistroClientComponentRegistry {
     
     private final ClusterRpcClientProxy clusterRpcClientProxy;
     
-    public DistroClientComponentRegistry(ServerMemberManager serverMemberManager, DistroProtocol distroProtocol,
-            DistroComponentHolder componentHolder, DistroTaskEngineHolder taskEngineHolder,
-            ClientManagerDelegate clientManager, ClusterRpcClientProxy clusterRpcClientProxy) {
+    public DistroClientComponentRegistry(ServerMemberManager serverMemberManager,
+        DistroProtocol distroProtocol,
+        DistroComponentHolder componentHolder, DistroTaskEngineHolder taskEngineHolder,
+        ClientManagerDelegate clientManager, ClusterRpcClientProxy clusterRpcClientProxy) {
         this.serverMemberManager = serverMemberManager;
         this.distroProtocol = distroProtocol;
         this.componentHolder = componentHolder;
@@ -65,13 +65,16 @@ public class DistroClientComponentRegistry {
      */
     @PostConstruct
     public void doRegister() {
-        DistroClientDataProcessor dataProcessor = new DistroClientDataProcessor(clientManager, distroProtocol);
+        DistroClientDataProcessor dataProcessor =
+            new DistroClientDataProcessor(clientManager, distroProtocol);
         DistroTransportAgent transportAgent = new DistroClientTransportAgent(clusterRpcClientProxy,
-                serverMemberManager);
-        DistroClientTaskFailedHandler taskFailedHandler = new DistroClientTaskFailedHandler(taskEngineHolder);
+            serverMemberManager);
+        DistroClientTaskFailedHandler taskFailedHandler =
+            new DistroClientTaskFailedHandler(taskEngineHolder);
         componentHolder.registerDataStorage(DistroClientDataProcessor.TYPE, dataProcessor);
         componentHolder.registerDataProcessor(dataProcessor);
         componentHolder.registerTransportAgent(DistroClientDataProcessor.TYPE, transportAgent);
-        componentHolder.registerFailedTaskHandler(DistroClientDataProcessor.TYPE, taskFailedHandler);
+        componentHolder.registerFailedTaskHandler(DistroClientDataProcessor.TYPE,
+            taskFailedHandler);
     }
 }

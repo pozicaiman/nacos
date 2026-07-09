@@ -16,20 +16,27 @@
 
 package com.alibaba.nacos.naming.core.v2.client;
 
+import com.alibaba.nacos.naming.core.v2.pojo.BatchInstanceData;
+import com.alibaba.nacos.naming.core.v2.pojo.BatchInstancePublishInfo;
 import com.alibaba.nacos.naming.core.v2.pojo.InstancePublishInfo;
 import com.alibaba.nacos.naming.core.v2.pojo.Service;
 import com.alibaba.nacos.naming.monitor.MetricsMonitor;
 import com.alibaba.nacos.naming.pojo.Subscriber;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Collection;
+import java.util.Collections;
 
-@RunWith(MockitoJUnitRunner.class)
-public class AbstractClientTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+@ExtendWith(MockitoExtension.class)
+class AbstractClientTest {
     
     private AbstractClient abstractClient;
     
@@ -39,89 +46,137 @@ public class AbstractClientTest {
     
     private Subscriber subscriber;
     
-    @Before
-    public void setUp() {
+    @BeforeEach
+    void setUp() {
         abstractClient = new MockAbstractClient(0L);
         service = Service.newService("ns1", "group1", "serviceName001");
         instancePublishInfo = new InstancePublishInfo("127.0.0.1", 8890);
-        subscriber = new Subscriber("127.0.0.1:8848", "agent1", "appName", "127.0.0.1",
-                "ns1", "serviceName001", 9090);
+        subscriber = new Subscriber("127.0.0.1:8848", "agent1", "appName", "127.0.0.1", "ns1",
+            "serviceName001", 9090);
         MetricsMonitor.getIpCountMonitor().set(0);
         MetricsMonitor.getSubscriberCount().set(0);
     }
     
     @Test
-    public void addServiceInstance() {
+    void addServiceInstance() {
         boolean result = abstractClient.addServiceInstance(service, instancePublishInfo);
-        Assert.assertTrue(result);
+        assertTrue(result);
     }
     
     @Test
-    public void addServiceSubscriber() {
-        Assert.assertTrue(abstractClient.addServiceSubscriber(service, subscriber));
+    void addServiceSubscriber() {
+        assertTrue(abstractClient.addServiceSubscriber(service, subscriber));
     }
     
     @Test
-    public void testGetLastUpdatedTime() {
-        Assert.assertNotNull(abstractClient.getLastUpdatedTime());
+    void testGetLastUpdatedTime() {
+        assertNotNull(abstractClient.getLastUpdatedTime());
     }
     
     @Test
-    public void removeServiceInstanceSuccess() {
+    void removeServiceInstanceSuccess() {
         addServiceInstance();
         InstancePublishInfo publishInfo = abstractClient.removeServiceInstance(service);
-        Assert.assertNotNull(publishInfo);
+        assertNotNull(publishInfo);
     }
     
     @Test
-    public void getInstancePublishInfo() {
+    void getInstancePublishInfo() {
         addServiceInstance();
         InstancePublishInfo publishInfo = abstractClient.getInstancePublishInfo(service);
-        Assert.assertNotNull(publishInfo);
+        assertNotNull(publishInfo);
     }
     
     @Test
-    public void getAllPublishedService() {
+    void getAllPublishedService() {
         Collection<Service> allPublishedService = abstractClient.getAllPublishedService();
-        Assert.assertNotNull(allPublishedService);
+        assertNotNull(allPublishedService);
     }
     
     @Test
-    public void removeServiceSubscriber() {
+    void removeServiceSubscriber() {
         boolean result = abstractClient.removeServiceSubscriber(service);
-        Assert.assertTrue(result);
+        assertTrue(result);
     }
     
     @Test
-    public void getSubscriber() {
+    void getSubscriber() {
         addServiceSubscriber();
         Subscriber subscriber1 = abstractClient.getSubscriber(service);
-        Assert.assertNotNull(subscriber1);
+        assertNotNull(subscriber1);
     }
     
     @Test
-    public void getAllSubscribeService() {
+    void getAllSubscribeService() {
         Collection<Service> allSubscribeService = abstractClient.getAllSubscribeService();
-        Assert.assertNotNull(allSubscribeService);
+        assertNotNull(allSubscribeService);
     }
     
     @Test
-    public void generateSyncData() {
+    void generateSyncData() {
         ClientSyncData clientSyncData = abstractClient.generateSyncData();
-        Assert.assertNotNull(clientSyncData);
+        assertNotNull(clientSyncData);
     }
     
     @Test
-    public void release() {
+    void generateSyncDataWithNormalAndBatchInstances() {
+        Service batchService = Service.newService("ns2", "group2", "batchService");
+        BatchInstancePublishInfo batchInstance = newBatchInstance();
+        abstractClient.addServiceInstance(service, instancePublishInfo);
+        abstractClient.addServiceInstance(batchService, batchInstance);
+        
+        ClientSyncData clientSyncData = abstractClient.generateSyncData();
+        BatchInstanceData batchInstanceData = clientSyncData.getBatchInstanceData();
+        
+        assertEquals(Collections.singletonList("ns1"), clientSyncData.getNamespaces());
+        assertEquals(Collections.singletonList("group1"), clientSyncData.getGroupNames());
+        assertEquals(Collections.singletonList("serviceName001"), clientSyncData.getServiceNames());
+        assertEquals(1, clientSyncData.getInstancePublishInfos().size());
+        assertEquals(Collections.singletonList("ns2"), batchInstanceData.getNamespaces());
+        assertEquals(Collections.singletonList("group2"), batchInstanceData.getGroupNames());
+        assertEquals(Collections.singletonList("batchService"),
+            batchInstanceData.getServiceNames());
+        assertSame(batchInstance, batchInstanceData.getBatchInstancePublishInfos().get(0));
+    }
+    
+    @Test
+    void removeServiceInstanceWithBatchInstance() {
+        BatchInstancePublishInfo batchInstance = newBatchInstance();
+        abstractClient.addServiceInstance(service, batchInstance);
+        
+        InstancePublishInfo removed = abstractClient.removeServiceInstance(service);
+        
+        assertSame(batchInstance, removed);
+    }
+    
+    @Test
+    void release() {
         
         abstractClient.addServiceInstance(service, instancePublishInfo);
-        Assert.assertEquals(1, MetricsMonitor.getIpCountMonitor().get());
+        assertEquals(1, MetricsMonitor.getIpCountMonitor().get());
         abstractClient.addServiceSubscriber(service, subscriber);
-        Assert.assertEquals(1, MetricsMonitor.getSubscriberCount().get());
+        assertEquals(1, MetricsMonitor.getSubscriberCount().get());
         
         abstractClient.release();
         
-        Assert.assertEquals(0, MetricsMonitor.getSubscriberCount().get());
-        Assert.assertEquals(0, MetricsMonitor.getIpCountMonitor().get());
+        assertEquals(0, MetricsMonitor.getSubscriberCount().get());
+        assertEquals(0, MetricsMonitor.getIpCountMonitor().get());
+    }
+    
+    @Test
+    void releaseWithBatchInstance() {
+        abstractClient.addServiceInstance(service, newBatchInstance());
+        assertEquals(1, MetricsMonitor.getIpCountMonitor().get());
+        
+        abstractClient.release();
+        
+        assertEquals(0, MetricsMonitor.getIpCountMonitor().get());
+    }
+    
+    private BatchInstancePublishInfo newBatchInstance() {
+        BatchInstancePublishInfo result = new BatchInstancePublishInfo();
+        result.setInstancePublishInfos(
+            Collections.singletonList(new InstancePublishInfo("127.0.0.2", 8891)));
+        return result;
     }
 }

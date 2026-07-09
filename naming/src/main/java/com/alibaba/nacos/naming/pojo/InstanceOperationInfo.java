@@ -31,14 +31,16 @@ public class InstanceOperationInfo {
     public InstanceOperationInfo() {
     }
     
-    public InstanceOperationInfo(String serviceName, String consistencyType, List<? extends Instance> instances) {
+    public InstanceOperationInfo(String serviceName, String consistencyType,
+        List<? extends Instance> instances) {
         this.serviceName = serviceName;
         this.consistencyType = consistencyType;
         this.instances = instances;
     }
     
     /**
-     * serverName.
+     * serverName with groupName.
+     * TODO split serviceName to serverName and serviceName. After disabled v1 client api.
      */
     private String serviceName;
     

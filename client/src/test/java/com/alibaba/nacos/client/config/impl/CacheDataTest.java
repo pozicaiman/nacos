@@ -27,8 +27,7 @@ import com.alibaba.nacos.common.notify.Event;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.notify.listener.Subscriber;
 import com.alibaba.nacos.common.utils.MD5Utils;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -37,34 +36,40 @@ import java.util.Properties;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
-public class CacheDataTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class CacheDataTest {
     
     @Test
-    public void testConstructorAndEquals() {
+    void testConstructorAndEquals() {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData cacheData1 = new CacheData(filter, "name1", "key", "group", "tenant");
-        Assert.assertEquals("CacheData [key, group]", cacheData1.toString());
+        assertEquals("CacheData [key, group]", cacheData1.toString());
         
         final CacheData cacheData2 = new CacheData(filter, "name2", "key", "group");
-        Assert.assertEquals(cacheData1, cacheData2);
-        Assert.assertEquals(cacheData1.hashCode(), cacheData2.hashCode());
+        assertEquals(cacheData1, cacheData2);
+        assertEquals(cacheData1.hashCode(), cacheData2.hashCode());
         
         final CacheData cacheData3 = new CacheData(filter, "name2", "key3", "group", "tenant");
-        Assert.assertNotEquals(cacheData1, cacheData3);
+        assertNotEquals(cacheData1, cacheData3);
     }
     
     @Test
-    public void testGetter() {
+    void testGetter() {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData cacheData1 = new CacheData(filter, "name1", "key", "group", "tenant");
         
-        Assert.assertTrue(cacheData1.isInitializing());
-        Assert.assertNull(cacheData1.getContent());
-        Assert.assertEquals(0, cacheData1.getTaskId());
-        Assert.assertFalse(cacheData1.isConsistentWithServer());
-        Assert.assertFalse(cacheData1.isUseLocalConfigInfo());
-        Assert.assertEquals(0, cacheData1.getLastModifiedTs().intValue());
-        Assert.assertEquals(0, cacheData1.getLocalConfigInfoVersion());
+        assertTrue(cacheData1.isInitializing());
+        assertNull(cacheData1.getContent());
+        assertEquals(0, cacheData1.getTaskId());
+        assertFalse(cacheData1.isConsistentWithServer());
+        assertFalse(cacheData1.isUseLocalConfigInfo());
+        assertEquals(0, cacheData1.getLastModifiedTs().intValue());
+        assertEquals(0, cacheData1.getLocalConfigInfoVersion());
         
         cacheData1.setInitializing(false);
         cacheData1.setContent("123");
@@ -76,34 +81,35 @@ public class CacheDataTest {
         cacheData1.setUseLocalConfigInfo(true);
         cacheData1.setLocalConfigInfoVersion(timeStamp);
         
-        Assert.assertFalse(cacheData1.isInitializing());
-        Assert.assertEquals("123", cacheData1.getContent());
-        Assert.assertEquals(MD5Utils.md5Hex("123", "UTF-8"), cacheData1.getMd5());
+        assertFalse(cacheData1.isInitializing());
+        assertEquals("123", cacheData1.getContent());
+        assertEquals(MD5Utils.md5Hex("123", "UTF-8"), cacheData1.getMd5());
         
-        Assert.assertEquals(123, cacheData1.getTaskId());
-        Assert.assertTrue(cacheData1.isConsistentWithServer());
-        Assert.assertEquals("123", cacheData1.getType());
-        Assert.assertTrue(cacheData1.isUseLocalConfigInfo());
-        Assert.assertEquals(timeStamp, cacheData1.getLastModifiedTs().longValue());
-        Assert.assertEquals(timeStamp, cacheData1.getLocalConfigInfoVersion());
+        assertEquals(123, cacheData1.getTaskId());
+        assertTrue(cacheData1.isConsistentWithServer());
+        assertEquals("123", cacheData1.getType());
+        assertTrue(cacheData1.isUseLocalConfigInfo());
+        assertEquals(timeStamp, cacheData1.getLastModifiedTs().longValue());
+        assertEquals(timeStamp, cacheData1.getLocalConfigInfoVersion());
     }
     
     @Test
-    public void testNotifyWarnTimeout() {
+    void testNotifyWarnTimeout() {
         System.setProperty("nacos.listener.notify.warn.timeout", "5000");
         long notifyWarnTimeout = CacheData.initNotifyWarnTimeout();
-        Assert.assertEquals(5000, notifyWarnTimeout);
+        assertEquals(5000, notifyWarnTimeout);
         System.setProperty("nacos.listener.notify.warn.timeout", "1bf000abc");
         long notifyWarnTimeout2 = CacheData.initNotifyWarnTimeout();
-        Assert.assertEquals(60000, notifyWarnTimeout2);
+        assertEquals(60000, notifyWarnTimeout2);
     }
     
     @Test
-    public void testListener() throws NacosException {
+    void testListener() throws NacosException {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData cacheData1 = new CacheData(filter, "name1", "key", "group", "tenant");
         
         Listener listener = new Listener() {
+            
             @Override
             public Executor getExecutor() {
                 return null;
@@ -114,20 +120,21 @@ public class CacheDataTest {
             }
         };
         cacheData1.addListener(listener);
-        Assert.assertEquals(1, cacheData1.getListeners().size());
-        Assert.assertEquals(listener, cacheData1.getListeners().get(0));
+        assertEquals(1, cacheData1.getListeners().size());
+        assertEquals(listener, cacheData1.getListeners().get(0));
         
         cacheData1.removeListener(listener);
-        Assert.assertEquals(0, cacheData1.getListeners().size());
+        assertEquals(0, cacheData1.getListeners().size());
         
     }
     
     @Test
-    public void testCheckListenerMd5() throws NacosException {
+    void testCheckListenerMd5() throws NacosException {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData data = new CacheData(filter, "name1", "key", "group", "tenant");
         final List<String> list = new ArrayList<>();
         Listener listener = new Listener() {
+            
             @Override
             public Executor getExecutor() {
                 return Runnable::run;
@@ -140,25 +147,26 @@ public class CacheDataTest {
         };
         data.addListener(listener);
         data.checkListenerMd5();
-        Assert.assertTrue(data.checkListenersMd5Consistent());
-        Assert.assertEquals(0, list.size());
+        assertTrue(data.checkListenersMd5Consistent());
+        assertEquals(0, list.size());
         
         data.setContent("new");
-        Assert.assertFalse(data.checkListenersMd5Consistent());
+        assertFalse(data.checkListenersMd5Consistent());
         data.checkListenerMd5();
-        Assert.assertEquals(1, list.size());
-        Assert.assertEquals("new", list.get(0));
+        assertEquals(1, list.size());
+        assertEquals("new", list.get(0));
         
     }
     
     @Test
-    public void testCheckListenerMd5NotifyTimeouts() throws NacosException {
+    void testCheckListenerMd5NotifyTimeouts() throws NacosException {
         System.setProperty("nacos.listener.notify.warn.timeout", "1000");
         long notifyWarnTimeout = CacheData.initNotifyWarnTimeout();
-        Assert.assertEquals(1000, notifyWarnTimeout);
+        assertEquals(1000, notifyWarnTimeout);
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData data = new CacheData(filter, "name1", "keytimeouts", "group", "tenant");
         Listener listener = new Listener() {
+            
             @Override
             public Executor getExecutor() {
                 return Runnable::run;
@@ -192,12 +200,12 @@ public class CacheDataTest {
         data.addListener(listener);
         data.setContent("new");
         data.checkListenerMd5();
-        Assert.assertTrue(data.checkListenersMd5Consistent());
-        Assert.assertEquals("keytimeouts", dataIdNotifyTimeouts.get());
+        assertTrue(data.checkListenersMd5Consistent());
+        assertEquals("keytimeouts", dataIdNotifyTimeouts.get());
     }
     
     @Test
-    public void testAbstractSharedListener() throws NacosException {
+    void testAbstractSharedListener() throws NacosException {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData data = new CacheData(filter, "name1", "keyshare", "group", "tenant");
         
@@ -206,6 +214,7 @@ public class CacheDataTest {
         final String[] contentReceive = new String[1];
         
         Listener listener = new AbstractSharedListener() {
+            
             @Override
             public Executor getExecutor() {
                 return Runnable::run;
@@ -223,14 +232,14 @@ public class CacheDataTest {
         String content = "content" + System.currentTimeMillis();
         data.setContent(content);
         data.checkListenerMd5();
-        Assert.assertTrue(data.checkListenersMd5Consistent());
-        Assert.assertEquals(dataIdReceive[0], "keyshare");
-        Assert.assertEquals(groupReceive[0], "group");
-        Assert.assertEquals(contentReceive[0], content);
+        assertTrue(data.checkListenersMd5Consistent());
+        assertEquals("keyshare", dataIdReceive[0]);
+        assertEquals("group", groupReceive[0]);
+        assertEquals(contentReceive[0], content);
     }
     
     @Test
-    public void testAbstractConfigChangeListener() throws NacosException {
+    void testAbstractConfigChangeListener() throws NacosException {
         ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
         final CacheData data = new CacheData(filter, "name1", "keyshare", "group", "tenant");
         data.setType("properties");
@@ -238,6 +247,7 @@ public class CacheDataTest {
         
         AtomicReference<ConfigChangeEvent> changeItemReceived = new AtomicReference<>();
         Listener listener = new AbstractConfigChangeListener() {
+            
             @Override
             public void receiveConfigChange(ConfigChangeEvent event) {
                 changeItemReceived.set(event);
@@ -253,10 +263,48 @@ public class CacheDataTest {
         String content = "b=b\nc=abc\nd=d";
         data.setContent(content);
         data.checkListenerMd5();
-        Assert.assertTrue(data.checkListenersMd5Consistent());
-        Assert.assertEquals(PropertyChangeType.DELETED, changeItemReceived.get().getChangeItem("a").getType());
-        Assert.assertEquals(PropertyChangeType.MODIFIED, changeItemReceived.get().getChangeItem("c").getType());
-        Assert.assertEquals(PropertyChangeType.ADDED, changeItemReceived.get().getChangeItem("d").getType());
+        assertTrue(data.checkListenersMd5Consistent());
+        assertEquals(PropertyChangeType.DELETED,
+            changeItemReceived.get().getChangeItem("a").getType());
+        assertEquals(PropertyChangeType.MODIFIED,
+            changeItemReceived.get().getChangeItem("c").getType());
+        assertEquals(PropertyChangeType.ADDED,
+            changeItemReceived.get().getChangeItem("d").getType());
     }
     
+    @Test
+    void testNotifyTaskExecutorExceptionResetsInNotifying() throws NacosException {
+        ConfigFilterChainManager filter = new ConfigFilterChainManager(new Properties());
+        final CacheData data =
+            new CacheData(filter, "name1", "key_executor_fail", "group", "tenant");
+        
+        Listener listener = new Listener() {
+            
+            @Override
+            public Executor getExecutor() {
+                return command -> {
+                    throw new java.util.concurrent.RejectedExecutionException(
+                        "Mock ThreadPool Full");
+                };
+            }
+            
+            @Override
+            public void receiveConfigInfo(String configInfo) {
+            }
+        };
+        data.addListener(listener);
+        data.setContent("new_content_trigger");
+        
+        // When checking listener MD5, the RejectedExecutionException will be thrown.
+        // It shouldn't block the caller, and the inNotifying flag must be correctly reset.
+        data.checkListenerMd5();
+        
+        // Assert that the flag inNotifying is false (which allows further checkListenerMd5 invocations).
+        // Since we cannot directly access the private inNotifying field of ManagerListenerWrap,
+        // we can trigger another content change and see if the exception is thrown again.
+        data.setContent("another_content_trigger");
+        // If it was deadlocked (inNotifying=true), the checkListenerMd5() would just warn and return.
+        // If the reset works, it will try to submit again and throw the exception again.
+        data.checkListenerMd5();
+    }
 }

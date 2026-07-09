@@ -20,7 +20,7 @@ import com.alibaba.nacos.plugin.auth.api.Permission;
 import com.alibaba.nacos.plugin.auth.exception.AccessException;
 import com.alibaba.nacos.plugin.auth.impl.users.NacosUser;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * Authentication interface.
@@ -74,6 +74,13 @@ public interface IAuthenticationManager {
      * @return if the user has the administrator role.
      */
     boolean hasGlobalAdminRole(String username);
+    
+    /**
+     * Whether the user exist the administrator role.
+     *
+     * @return if the user exist the administrator role.
+     */
+    boolean hasGlobalAdminRole();
     
     /**
      * Whether the user has the administrator role.

@@ -18,23 +18,27 @@ package com.alibaba.nacos.core.paramcheck;
 
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
+import com.alibaba.nacos.api.model.v2.Result;
+import com.alibaba.nacos.common.http.param.MediaType;
 import com.alibaba.nacos.common.paramcheck.AbstractParamChecker;
 import com.alibaba.nacos.common.paramcheck.ParamCheckResponse;
 import com.alibaba.nacos.common.paramcheck.ParamCheckerManager;
 import com.alibaba.nacos.common.paramcheck.ParamInfo;
+import com.alibaba.nacos.common.utils.JacksonUtils;
 import com.alibaba.nacos.core.code.ControllerMethodsCache;
 import com.alibaba.nacos.core.exception.ErrorCode;
 import com.alibaba.nacos.plugin.control.Loggers;
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -53,7 +57,7 @@ public class ParamCheckerFilter implements Filter {
     
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-            throws IOException, ServletException {
+        throws IOException, ServletException {
         boolean paramCheckEnabled = ServerParamCheckConfig.getInstance().isParamCheckEnabled();
         if (!paramCheckEnabled) {
             chain.doFilter(request, response);
@@ -67,23 +71,29 @@ public class ParamCheckerFilter implements Filter {
                 chain.doFilter(req, resp);
                 return;
             }
-            ExtractorManager.Extractor extractor = method.getAnnotation(ExtractorManager.Extractor.class);
+            ExtractorManager.Extractor extractor =
+                method.getAnnotation(ExtractorManager.Extractor.class);
             if (extractor == null) {
-                extractor = method.getDeclaringClass().getAnnotation(ExtractorManager.Extractor.class);
+                extractor =
+                    method.getDeclaringClass().getAnnotation(ExtractorManager.Extractor.class);
                 if (extractor == null) {
                     chain.doFilter(request, response);
                     return;
                 }
             }
-            AbstractHttpParamExtractor httpParamExtractor = ExtractorManager.getHttpExtractor(extractor);
+            AbstractHttpParamExtractor httpParamExtractor =
+                ExtractorManager.getHttpExtractor(extractor);
             List<ParamInfo> paramInfoList = httpParamExtractor.extractParam(req);
             ParamCheckerManager paramCheckerManager = ParamCheckerManager.getInstance();
-            AbstractParamChecker paramChecker = paramCheckerManager.getParamChecker(ServerParamCheckConfig.getInstance().getActiveParamChecker());
+            AbstractParamChecker paramChecker = paramCheckerManager.getParamChecker(
+                ServerParamCheckConfig.getInstance().getActiveParamChecker());
             ParamCheckResponse paramCheckResponse = paramChecker.checkParamInfoList(paramInfoList);
             if (paramCheckResponse.isSuccess()) {
                 chain.doFilter(req, resp);
             } else {
-                Loggers.CONTROL.info("Param check invalid,{},url:{}", paramCheckResponse.getMessage(), req.getRequestURI());
+                Loggers.CONTROL.info("Param check invalid,{},url:{}",
+                    paramCheckResponse.getMessage(),
+                    req.getRequestURI());
                 generate400Response(resp, paramCheckResponse.getMessage());
             }
         } catch (NacosException e) {
@@ -104,8 +114,13 @@ public class ParamCheckerFilter implements Filter {
             response.setHeader("Pragma", "no-cache");
             response.setDateHeader("Expires", 0);
             response.setHeader("Cache-Control", "no-cache,no-store");
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setContentType(MediaType.APPLICATION_JSON);
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getOutputStream().println(message);
+            Result<String> result =
+                Result.failure(com.alibaba.nacos.api.model.v2.ErrorCode.PARAMETER_VALIDATE_ERROR,
+                    message);
+            response.getWriter().write(JacksonUtils.toJson(result));
         } catch (Exception ex) {
             Loggers.CONTROL.error("Error to generate tps 400 response", ex);
         }

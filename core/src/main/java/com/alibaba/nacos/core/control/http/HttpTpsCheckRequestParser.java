@@ -20,14 +20,13 @@ package com.alibaba.nacos.core.control.http;
 
 import com.alibaba.nacos.plugin.control.tps.request.TpsCheckRequest;
 
-import javax.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * http tps check request parser.
  *
  * @author shiyiyue
  */
-@SuppressWarnings("PMD.AbstractClassShouldStartWithAbstractNamingRule")
 public abstract class HttpTpsCheckRequestParser {
     
     public HttpTpsCheckRequestParser() {

@@ -44,22 +44,6 @@ public class Chooser<K, T> {
     }
     
     /**
-     * Random get one item.
-     *
-     * @return item
-     */
-    public T random() {
-        List<T> items = ref.items;
-        if (items.size() == 0) {
-            return null;
-        }
-        if (items.size() == 1) {
-            return items.get(0);
-        }
-        return items.get(ThreadLocalRandom.current().nextInt(items.size()));
-    }
-    
-    /**
      * Random get one item with weight.
      *
      * @return item
@@ -81,7 +65,8 @@ public class Chooser<K, T> {
         }
         
         if (ref.weights.length == 0) {
-            throw new IllegalStateException("Cumulative Weight wrong , the array length is equal to 0.");
+            throw new IllegalStateException(
+                "Cumulative Weight wrong , the array length is equal to 0.");
         }
         
         /* This should never happen, but it ensures we will return a correct
@@ -173,7 +158,7 @@ public class Chooser<K, T> {
                 return;
             }
             throw new IllegalStateException(
-                    "Cumulative Weight calculate wrong , the sum of probabilities does not equals 1.");
+                "Cumulative Weight calculate wrong , the sum of probabilities does not equals 1.");
         }
         
         @Override

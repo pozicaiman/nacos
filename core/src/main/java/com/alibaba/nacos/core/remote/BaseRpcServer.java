@@ -21,9 +21,8 @@ import com.alibaba.nacos.common.remote.PayloadRegistry;
 import com.alibaba.nacos.core.remote.tls.RpcServerSslContextRefresherHolder;
 import com.alibaba.nacos.core.utils.Loggers;
 import com.alibaba.nacos.sys.env.EnvUtil;
-
-import javax.annotation.PostConstruct;
-import javax.annotation.PreDestroy;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 
 /**
  * abstract rpc server .
@@ -43,12 +42,17 @@ public abstract class BaseRpcServer {
     @PostConstruct
     public void start() throws Exception {
         String serverName = getClass().getSimpleName();
-        Loggers.REMOTE.info("Nacos {} Rpc server starting at port {}", serverName, getServicePort());
+        Loggers.REMOTE.info("Nacos {} Rpc server starting at port {}", serverName,
+            getServicePort());
         
         startServer();
         
-        if (RpcServerSslContextRefresherHolder.getInstance() != null) {
-            RpcServerSslContextRefresherHolder.getInstance().refresh(this);
+        if (RpcServerSslContextRefresherHolder.getSdkInstance() != null) {
+            RpcServerSslContextRefresherHolder.getSdkInstance().refresh(this);
+        }
+        
+        if (RpcServerSslContextRefresherHolder.getClusterInstance() != null) {
+            RpcServerSslContextRefresherHolder.getClusterInstance().refresh(this);
         }
         
         Loggers.REMOTE.info("Nacos {} Rpc server started at port {}", serverName, getServicePort());
@@ -75,8 +79,8 @@ public abstract class BaseRpcServer {
      * Reload protocol context if necessary.
      *
      * <p>
-     *     protocol like:
-     *     <li>Tls</li>
+     * protocol like:
+     * <li>Tls</li>
      * </p>
      */
     public abstract void reloadProtocolContext();

@@ -17,6 +17,7 @@
 package com.alibaba.nacos.core.control.http;
 
 import com.alibaba.nacos.core.code.ControllerMethodsCache;
+import com.alibaba.nacos.core.web.NacosWebBean;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,10 +28,12 @@ import org.springframework.context.annotation.Configuration;
  * @author xiweng.yy
  */
 @Configuration
+@NacosWebBean
 public class NacosHttpTpsControlRegistration {
     
     @Bean
-    public FilterRegistrationBean<NacosHttpTpsFilter> tpsFilterRegistration(NacosHttpTpsFilter tpsFilter) {
+    public FilterRegistrationBean<NacosHttpTpsFilter> tpsFilterRegistration(
+        NacosHttpTpsFilter tpsFilter) {
         FilterRegistrationBean<NacosHttpTpsFilter> registration = new FilterRegistrationBean<>();
         registration.setFilter(tpsFilter);
         //nacos naming

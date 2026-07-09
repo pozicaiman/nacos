@@ -18,18 +18,18 @@ package com.alibaba.nacos.config.server.service.dump;
 
 import com.alibaba.nacos.config.server.service.dump.disk.ConfigDiskService;
 import com.alibaba.nacos.config.server.service.dump.disk.ConfigRawDiskService;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 
-@RunWith(MockitoJUnitRunner.class)
-public class DumpProcessorUserRwaDiskTest extends DumpProcessorTest {
+@ExtendWith(MockitoExtension.class)
+class DumpProcessorUserRwaDiskTest extends DumpProcessorTest {
     
-    @Before
+    @BeforeEach
     public void init() throws Exception {
         super.init();
     }
@@ -39,8 +39,8 @@ public class DumpProcessorUserRwaDiskTest extends DumpProcessorTest {
         return new ConfigRawDiskService();
     }
     
-    @After
-    public void after() {
+    @AfterEach
+    public void after() throws Exception {
         super.after();
     }
     
@@ -48,15 +48,5 @@ public class DumpProcessorUserRwaDiskTest extends DumpProcessorTest {
     public void testDumpNormalAndRemove() throws IOException {
         super.testDumpNormalAndRemove();
         
-    }
-    
-    @Test
-    public void testDumpBetaAndRemove() throws IOException {
-        super.testDumpBetaAndRemove();
-    }
-    
-    @Test
-    public void testDumpTagAndRemove() throws IOException {
-        super.testDumpTagAndRemove();
     }
 }

@@ -16,19 +16,34 @@
 
 package com.alibaba.nacos.client.utils;
 
-import org.junit.Test;
+import com.alibaba.nacos.api.utils.json.JsonUtils;
+import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.TimeUnit;
 
-public class PreInitUtilsTest {
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+class PreInitUtilsTest {
     
     @Test
-    public void testAsyncPreLoadCostComponent() throws InterruptedException {
+    void testAsyncPreLoadCostComponent() throws InterruptedException {
         // There is no things need to be assert.
         // The method will called when nacos-client init to async to load some components to reduce the sync load time.
         PreInitUtils.asyncPreLoadCostComponent();
         // No exception is ok.
         // Let async thread run completed
         TimeUnit.SECONDS.sleep(2);
+    }
+    
+    @Test
+    void testPreLoadCostComponent() {
+        PreInitUtils.preLoadCostComponent();
+        
+        assertNotNull(JsonUtils.selectedAdapterName());
+    }
+    
+    @Test
+    void testConstructor() {
+        assertNotNull(new PreInitUtils());
     }
 }
